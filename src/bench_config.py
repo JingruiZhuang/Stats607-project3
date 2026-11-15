@@ -39,3 +39,30 @@ EXTREME_PROPENSITY = 1e-3
 
 PROFILE_DIR = "results/profiles"
 BENCHMARK_DIR = "results/benchmarks"
+
+# ---------------------------------------------------------------- budget study
+
+# Sample sizes for the simulation-budget study (docs/EXTENSIONS.md).  The same
+# geometric shape as the complexity grid, stopping at 4000: the question there
+# is how the estimators' sampling variance falls with n, and that is visible
+# well before the sizes needed to see the asymptotic runtime exponent.
+BUDGET_N = [125, 250, 500, 1000, 2000, 4000]
+
+# Replicates per pilot point.  The relative standard error of an estimated
+# variance is sqrt(2 / (m - 1)), so m = 2000 pins each cell's dispersion to
+# about 3%, and the replicate counts derived from it to about 6%.
+BUDGET_N_SIM = 2000
+
+# Replicates used only for the per-replicate cost model; the timing needs far
+# fewer draws than the variance does.
+BUDGET_TIMING_N_SIM = 200
+
+# Bootstrap sizes swept when asking how many resamples the median and
+# interquartile-range standard errors actually need, and how many independent
+# bootstrap seeds each size is judged over.
+BUDGET_N_BOOTSTRAP = [125, 250, 500, 1000, 2000, 4000]
+BUDGET_BOOTSTRAP_SEEDS = 12
+
+# Prefix lengths of the pilot used to ask how large a pilot has to be before
+# the replicate counts it recommends stop moving.
+BUDGET_PILOT_SIZES = [50, 100, 200, 500, 1000, 2000]

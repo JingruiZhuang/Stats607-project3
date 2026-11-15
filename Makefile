@@ -13,7 +13,7 @@ PERF := TQDM_DISABLE=1 $(PYTHON)
 
 .PHONY: all simulate analyze figures test clean \
         profile complexity benchmark parallel stability-check \
-        perf-figures performance regression clean-perf
+        perf-figures performance regression budget clean-perf
 
 all: figures
 
@@ -59,11 +59,16 @@ parallel:
 stability-check:
 	$(PERF) -m src.stability --target $(TARGET) --out-dir $(BENCH)
 
+# The optional extension of docs/EXTENSIONS.md: how many replicates each
+# scenario needs, and what the uniform design spends to no purpose.
+budget:
+	$(PERF) -m src.budget --target optimized --out-dir $(BENCH)
+
 perf-figures:
 	$(PERF) -m src.perf_figures --bench-dir $(BENCH) --outdir results/figures
 
 # The whole performance study, in the order the documents report it.
-performance: profile complexity benchmark stability-check perf-figures
+performance: profile complexity benchmark stability-check budget perf-figures
 
 regression:
 	$(PYTHON) -m pytest -q tests/test_regression.py

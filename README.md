@@ -12,7 +12,9 @@ For Unit 3 the study was optimized for speed and numerical stability. It now run
 faster** in serial and **57 times faster** on eight cores, and produces the same results.
 [docs/BASELINE.md](docs/BASELINE.md) measures the Unit 2 code it started from and
 [docs/OPTIMIZATION.md](docs/OPTIMIZATION.md) sets out what was changed, what it bought and
-what it cost.
+what it cost. [docs/EXTENSIONS.md](docs/EXTENSIONS.md) goes on to ask how many replicates the
+study actually needed, and finds it spends about a fifth of its simulation time and three
+fifths of its analysis time on precision it does not report.
 
 ## Setup
 
@@ -44,6 +46,7 @@ make profile TARGET=baseline      # cProfile a representative run
 make complexity                   # runtime against n, both implementations
 make benchmark                    # baseline vs optimized, the ladder, core scaling
 make stability-check TARGET=...   # warnings, convergence and weight diagnostics
+make budget                       # replicates needed per scenario, and per n
 make perf-figures                 # the performance figures
 make performance                  # all of the above, in order
 make regression                   # the evidence that the optimizations preserved results
@@ -79,12 +82,14 @@ src/profile_run.py   cProfile a run and attribute its time
 src/complexity.py    runtime against n, with power-law and affine fits
 src/benchmark.py     baseline vs optimized, the optimization ladder, core scaling
 src/stability.py     warnings, convergence and inverse-probability weight diagnostics
+src/budget.py        how many replicates each scenario needs, and what the rest cost
 src/perf_figures.py  the performance figures
 
 baseline/            the Unit 2 simulation code, frozen, as the reference to measure against
 tests/               DGP, method, output and reproducibility checks
 tests/test_regression.py   that the optimizations preserved the study's results
-docs/                the baseline measurement and the optimization record
+tests/test_budget.py       the arithmetic behind the replicate counts
+docs/                the baseline measurement, the optimization record and the budget study
 ```
 
 Outputs: `results/raw/estimates.csv` holds one row per estimate (20,000 rows),

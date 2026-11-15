@@ -16,8 +16,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from . import bench_config, complexity, config
-from .figures import GRID, INK, INK_SOFT, SURFACE, style
+from . import bench_config, budget, complexity, config, metrics
+from .figures import FAMILY_COLOUR, GRID, INK, INK_SOFT, SURFACE, style
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 # estimator-family colours so the two sets of figures cannot be confused.
 TARGET_COLOUR = {"baseline": "#8a6a4a", "optimized": "#1baf7a"}
 TARGET_LABEL = {"baseline": "baseline (Unit 2)", "optimized": "optimized"}
+
+# Scenario identity, for the budget figure, where the comparison is between
+# the two scenarios rather than between two implementations.
+SCENARIO_COLOUR = {"A": "#2a78d6", "B": "#eb6834"}
 
 # Components are told apart by line style rather than by colour, so that colour
 # stays free to mean the implementation.
@@ -242,6 +246,160 @@ def plot_stability(summary, out_path):
     logger.info("wrote %s", out_path)
 
 
+def plot_budget(dispersion, fixed, bootstrap, out_path, at_n=None):
+    """The four relationships a simulation budget is decided by.
+
+    Top left: how fast each cell's sampling variance falls with n, which is
+    what makes replicates at large n redundant.  Top right: the replicate count
+    that holds one precision target as n grows, against the 1/n line that
+    theory predicts.  Bottom left: what that does to the cost of the study --
+    the uniform design pays in proportion to n, the allocated one pays almost
+    nothing extra.  Bottom right: the same question asked of the analysis
+    stage, where the bootstrap's own noise has to be driven below the noise of
+    the replicates it is summarising before more resamples buy anything.
+    """
+    style()
+    at_n = at_n if at_n is not None else config.N
+    fig, axes = plt.subplots(2, 2, figsize=(11, 8.2))
+    (ax_var, ax_count), (ax_cost, ax_boot) = axes
+
+    # --- variance against n, one line per cell
+    sound = dispersion[dispersion["tail_share"] < budget.TAIL_SHARE_LIMIT]
+    excluded = {}
+    for (scenario, estimator), cell in dispersion.groupby(["scenario", "estimator"],
+                                                          sort=False):
+        cell = cell.sort_values("n")
+        family = estimator.split(".")[0]
+        keep = cell["tail_share"] < budget.TAIL_SHARE_LIMIT
+        ax_var.plot(cell.loc[keep, "n"], cell.loc[keep, "variance"],
+                    color=FAMILY_COLOUR.get(family, INK), linewidth=1.2,
+                    alpha=0.75, marker="o", markersize=2.6,
+                    markeredgecolor="none",
+                    linestyle="-" if scenario == "A" else (0, (4, 2)), zorder=3)
+        excluded[family] = excluded.get(family, []) + list(cell.loc[~keep, "n"])
+
+    # The excluded cells sit twenty orders of magnitude above the rest, so they
+    # are drawn against the top of the panel rather than allowed to flatten
+    # everything else into a line.
+    top = float(sound["variance"].max()) * 6.0
+    bottom = float(sound["variance"].min()) / 2.0
+    for family, sizes in excluded.items():
+        ax_var.plot(sizes, [top / 1.8] * len(sizes), linestyle="none",
+                    marker="^", markersize=6.5, markerfacecolor="none",
+                    markeredgewidth=1.2, zorder=5,
+                    color=FAMILY_COLOUR.get(family, INK))
+
+    reference = float(sound[sound["n"] == sound["n"].min()]["variance"].max())
+    grid = np.geomspace(dispersion["n"].min(), dispersion["n"].max(), 100)
+    ax_var.plot(grid, reference * dispersion["n"].min() / grid, color=INK,
+                linewidth=1.0, linestyle=(0, (1, 2)), zorder=2, label="1/n")
+    ax_var.set_yscale("log")
+    ax_var.set_ylim(bottom, top)
+    ax_var.set_ylabel("sampling variance of the estimator")
+    ax_var.set_title("Every well-behaved cell's variance falls as 1/n\n"
+                     "(carets: cells off the scale, where one replicate "
+                     f"carries over {100 * budget.TAIL_SHARE_LIMIT:.0f}% of it)",
+                     loc="left", fontsize=9.5)
+    ax_var.legend(frameon=False, loc="lower left", fontsize=8)
+
+    # --- replicate count holding one target, against 1/n
+    for scenario, plan in fixed.groupby("scenario", sort=False):
+        plan = plan.sort_values("n")
+        ax_count.plot(plan["n"], plan["n_sim_allocated"], linewidth=1.9,
+                      marker="o", markersize=4, markeredgecolor="none",
+                      color=SCENARIO_COLOUR[scenario], zorder=3,
+                      label=f"scenario {scenario}")
+    anchor = fixed[fixed["n"] == at_n]
+    ax_count.plot(grid, float(anchor["n_sim_allocated"].max()) * at_n / grid,
+                  color=INK, linewidth=1.0, linestyle=(0, (1, 2)), zorder=2,
+                  label="1/n")
+    ax_count.axhline(config.N_SIM, color=INK_SOFT, linewidth=1.0,
+                     linestyle=(0, (4, 3)), zorder=1)
+    ax_count.annotate(f"the study's uniform {config.N_SIM}",
+                      xy=(0.02, config.N_SIM), xycoords=("axes fraction", "data"),
+                      xytext=(0, 4), textcoords="offset points",
+                      color=INK_SOFT, fontsize=8)
+    ax_count.set_yscale("log")
+    ax_count.set_ylabel("replicates needed for the same precision")
+    ax_count.set_title("Holding the precision the published design reaches at "
+                       f"n = {at_n},\nthe replicate count needed falls like 1/n",
+                       loc="left", fontsize=9.5)
+    ax_count.legend(frameon=False, loc="upper right", fontsize=8)
+
+    # --- cost of the study, uniform against allocated
+    totals = fixed.groupby("n", as_index=False)[["cost_uniform",
+                                                 "cost_allocated"]].sum()
+    for column, colour, label in (
+            ("cost_uniform", "#8a6a4a", f"uniform {config.N_SIM} replicates"),
+            ("cost_allocated", "#1baf7a", "allocated to the target")):
+        ax_cost.plot(totals["n"], totals[column], linewidth=1.9, marker="o",
+                     markersize=4, markeredgecolor="none", color=colour,
+                     zorder=3, label=label)
+    ax_cost.set_yscale("log")
+    ax_cost.set_ylabel("seconds for the whole simulation")
+    ax_cost.set_yticks([0.3, 0.5, 1, 2, 3, 5])
+    ax_cost.set_title("So the cost of the study stops growing with n",
+                      loc="left", fontsize=9.5)
+    ax_cost.legend(frameon=False, loc="upper left", fontsize=8)
+
+    # --- the bootstrap's own noise
+    ax_boot.plot(bootstrap["n_bootstrap"],
+                 100.0 * bootstrap["jitter_bias_median"], linewidth=1.9,
+                 marker="o", markersize=4, markeredgecolor="none",
+                 color=FAMILY_COLOUR["HT"], zorder=3, label="median")
+    ax_boot.plot(bootstrap["n_bootstrap"], 100.0 * bootstrap["jitter_iqr"],
+                 linewidth=1.9, marker="o", markersize=4,
+                 markeredgecolor="none", color=FAMILY_COLOUR["OR"], zorder=3,
+                 label="interquartile range")
+    level = 100.0 * float(bootstrap["replicate_jitter"].iloc[0])
+    ax_boot.axhline(level, color=INK, linewidth=1.0, linestyle=(0, (4, 3)),
+                    zorder=1)
+    ax_boot.annotate("noise the replicates themselves contribute",
+                     xy=(0.02, level), xycoords=("axes fraction", "data"),
+                     xytext=(0, 5), textcoords="offset points", ha="left",
+                     color=INK_SOFT, fontsize=8)
+    ax_boot.axvline(metrics.N_BOOTSTRAP, color=INK_SOFT, linewidth=1.0,
+                    linestyle=(0, (4, 3)), zorder=1)
+    ax_boot.set_yscale("log")
+    ax_boot.set_xscale("log")
+    ax_boot.set_xticks(list(bootstrap["n_bootstrap"]))
+    ax_boot.set_xticklabels([str(int(size)) for size in bootstrap["n_bootstrap"]])
+    ax_boot.minorticks_off()
+    ax_boot.set_xlabel("bootstrap resamples per cell")
+    ax_boot.set_ylabel("spread of the standard error itself (%)")
+    ax_boot.set_title("Past about a thousand resamples the bootstrap is quieter\n"
+                      "than the replicates it summarises, and buys nothing more",
+                      loc="left", fontsize=9.5)
+    ax_boot.legend(frameon=False, loc="upper right", fontsize=8)
+    ax_boot.set_yticks([1, 2, 3, 4, 5, 6, 7])
+
+    sizes = sorted(dispersion["n"].unique())
+    for ax in (ax_var, ax_count, ax_cost):
+        ax.set_xscale("log")
+        ax.set_xticks(sizes)
+        ax.set_xticklabels([str(int(size)) for size in sizes])
+        ax.minorticks_off()
+        ax.axvline(at_n, color=INK, linewidth=1.0, linestyle=(0, (4, 3)), zorder=0)
+        ax.annotate(f"study n = {at_n}", xy=(at_n, 0.02),
+                    xycoords=("data", "axes fraction"), xytext=(4, 0),
+                    textcoords="offset points", color=INK_SOFT, fontsize=8)
+        ax.set_xlabel("sample size n")
+    for ax in (ax_count, ax_cost, ax_boot):
+        ax.yaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
+        ax.yaxis.set_major_formatter(
+            matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:g}"))
+    for ax in axes.ravel():
+        ax.grid(True, which="major", color=GRID, linewidth=0.6, zorder=0)
+
+    fig.suptitle("A replicate count chosen cell by cell: the study's precision "
+                 "for a fraction of its cost",
+                 x=0.011, ha="left", fontsize=10.5)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(out_path, bbox_inches="tight")
+    plt.close(fig)
+    logger.info("wrote %s", out_path)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bench-dir", default=bench_config.BENCHMARK_DIR)
@@ -282,6 +440,12 @@ def main():
         drawn += 1
     elif not args.skip_missing:
         _frame(benchmark, "benchmark")
+
+    dispersion = path("budget_dispersion.csv")
+    if os.path.exists(dispersion):
+        plot_budget(pd.read_csv(dispersion), pd.read_csv(path("budget_fixed_target.csv")),
+                    pd.read_csv(path("budget_bootstrap.csv")), out("budget.png"))
+        drawn += 1
 
     cores = path("benchmark_cores.csv")
     if os.path.exists(cores):
