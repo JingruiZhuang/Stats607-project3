@@ -25,3 +25,5 @@ results/profiles/*.txt
 # baseline + benchmark data products
 results/baseline/*.csv
 results/benchmarks/*.csv
+results/profiles/*_profile_estimates.csv
+results/benchmarks/*_complexity_estimates.csv

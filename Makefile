@@ -4,7 +4,16 @@ RAW     := results/raw/estimates.csv
 SUMMARY := results/raw/summary.csv
 FIGURES := results/figures/.stamp
 
-.PHONY: all simulate analyze figures test clean
+BENCH   := results/benchmarks
+PROFILES := results/profiles
+
+# Progress bars are noise in a logged performance run, and formatting them
+# costs time that would land in the measurement.
+PERF := TQDM_DISABLE=1 $(PYTHON)
+
+.PHONY: all simulate analyze figures test clean \
+        profile complexity benchmark parallel stability-check \
+        perf-figures performance regression clean-perf
 
 all: figures
 
@@ -27,7 +36,43 @@ $(FIGURES): $(RAW) $(SUMMARY) src/figures.py
 test:
 	$(PYTHON) -m pytest -q tests
 
+# ---------------------------------------------------------------- performance
+
+# TARGET selects the implementation to measure: `baseline` is the frozen Unit 2
+# code, `optimized` the current src.  Override on the command line, e.g.
+#   make profile TARGET=optimized
+TARGET ?= baseline
+
+profile:
+	$(PERF) -m src.profile_run --target $(TARGET) --out-dir $(PROFILES)
+
+complexity:
+	$(PERF) -m src.complexity --target baseline --target optimized \
+	        --out-dir $(BENCH)
+
+benchmark:
+	$(PERF) -m src.benchmark --out-dir $(BENCH)
+
+parallel:
+	$(PERF) -m src.simulation --out $(RAW) --jobs -1
+
+stability-check:
+	$(PERF) -m src.stability --target $(TARGET) --out-dir $(BENCH)
+
+perf-figures:
+	$(PERF) -m src.perf_figures --bench-dir $(BENCH) --outdir results/figures
+
+# The whole performance study, in the order the documents report it.
+performance: profile complexity benchmark stability-check perf-figures
+
+regression:
+	$(PYTHON) -m pytest -q tests/test_regression.py
+
 clean:
 	rm -f results/raw/*.csv results/raw/*.pkl
 	rm -f results/figures/*.png results/figures/*.pdf results/figures/.stamp
-	rm -rf __pycache__ src/__pycache__ tests/__pycache__ .pytest_cache
+	rm -rf __pycache__ src/__pycache__ baseline/__pycache__ tests/__pycache__ \
+	       .pytest_cache
+
+clean-perf:
+	rm -f $(BENCH)/*.csv $(PROFILES)/*.prof $(PROFILES)/*.txt
