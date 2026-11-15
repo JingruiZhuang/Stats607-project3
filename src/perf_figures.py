@@ -132,21 +132,27 @@ def plot_overhead(timings, out_path, at_n=None):
     fig, ax = plt.subplots(figsize=(6.4, 4.2))
 
     grid = np.geomspace(timings["n"].min(), timings["n"].max(), 200)
-    for scenario in scenarios:
-        panel = timings[(timings["scenario"] == scenario)
-                        & (timings["target"] == "baseline")].sort_values("n")
-        fit = complexity.fit_affine(panel["n"], panel["seconds_per_replicate"], at_n)
-        fixed = fit["fixed_seconds"]
-        share = 100.0 * fixed / (fixed + fit["seconds_per_observation"] * grid)
-        line, = ax.plot(grid, share, linewidth=1.9,
-                        label=f"scenario {scenario}")
-        ax.plot([at_n], [100.0 * fit["fixed_share_at_n"]], marker="o",
-                markersize=5.5, markeredgecolor=SURFACE, markeredgewidth=1.2,
-                color=line.get_color(), zorder=4)
-        ax.annotate(f"{100 * fit['fixed_share_at_n']:.0f}% fixed at n = {at_n}",
-                    xy=(at_n, 100.0 * fit["fixed_share_at_n"]),
-                    xytext=(8, 6), textcoords="offset points", fontsize=8,
-                    color=line.get_color())
+    for target in dict.fromkeys(timings["target"]):
+        for scenario in scenarios:
+            panel = timings[(timings["scenario"] == scenario)
+                            & (timings["target"] == target)].sort_values("n")
+            if panel.empty:
+                continue
+            fit = complexity.fit_affine(panel["n"],
+                                        panel["seconds_per_replicate"], at_n)
+            fixed = max(fit["fixed_seconds"], 0.0)
+            share = 100.0 * fixed / (fixed + fit["seconds_per_observation"] * grid)
+            ax.plot(grid, share, linewidth=1.9,
+                    color=TARGET_COLOUR.get(target, INK),
+                    linestyle="-" if scenario == "A" else (0, (4, 2)),
+                    label=f"{TARGET_LABEL.get(target, target)}, scenario {scenario}")
+            at = 100.0 * max(fit["fixed_share_at_n"], 0.0)
+            ax.plot([at_n], [at], marker="o", markersize=5.5,
+                    markeredgecolor=SURFACE, markeredgewidth=1.2,
+                    color=TARGET_COLOUR.get(target, INK), zorder=4)
+            ax.annotate(f"{at:.0f}%", xy=(at_n, at), xytext=(8, 4),
+                        textcoords="offset points", fontsize=8,
+                        color=TARGET_COLOUR.get(target, INK))
 
     ax.axvline(at_n, color=INK, linewidth=1.0, linestyle=(0, (4, 3)), zorder=0)
     ax.set_xscale("log")
@@ -154,9 +160,14 @@ def plot_overhead(timings, out_path, at_n=None):
     ax.grid(True, color=GRID, linewidth=0.6, zorder=0)
     ax.set_xlabel("sample size n")
     ax.set_ylabel("share of a replicate that does not scale with n (%)")
-    ax.legend(frameon=False, loc="lower left")
-    fig.suptitle("Most of a replicate at the study's n is fixed overhead, "
-                 "not arithmetic", x=0.011, ha="left", fontsize=10.5)
+    ax.annotate("at the study's n, the dot marks the share of each\n"
+                "implementation's runtime that no sample size amortises",
+                xy=(0.98, 0.95), xycoords="axes fraction", ha="right",
+                va="top", fontsize=8, color=INK_SOFT)
+    ax.legend(frameon=False, loc="lower left", fontsize=8)
+    fig.suptitle("The baseline's time at the study's n was overhead; "
+                 "the optimized code's is arithmetic",
+                 x=0.011, ha="left", fontsize=10.5)
     fig.tight_layout(rect=(0, 0, 1, 0.94))
     fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
@@ -263,12 +274,20 @@ def main():
     elif not args.skip_missing:
         _frame(stability, "stability-check")
 
-    benchmark = path("benchmark.csv")
-    if os.path.exists(benchmark):
-        from .benchmark import plot_comparison, plot_speedup
-        plot_comparison(pd.read_csv(benchmark), out("benchmark.png"))
-        plot_speedup(pd.read_csv(benchmark), out("speedup.png"))
-        drawn += 2
+    benchmark, ladder = path("benchmark.csv"), path("benchmark_ladder.csv")
+    if os.path.exists(benchmark) and os.path.exists(ladder):
+        from .benchmark import plot_comparison
+        plot_comparison(pd.read_csv(benchmark), pd.read_csv(ladder),
+                        out("benchmark.png"))
+        drawn += 1
+    elif not args.skip_missing:
+        _frame(benchmark, "benchmark")
+
+    cores = path("benchmark_cores.csv")
+    if os.path.exists(cores):
+        from .benchmark import plot_speedup
+        plot_speedup(pd.read_csv(cores), out("speedup.png"))
+        drawn += 1
 
     logger.info("drew %d performance figures into %s", drawn, args.outdir)
 

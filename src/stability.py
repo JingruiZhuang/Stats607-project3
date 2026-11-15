@@ -28,24 +28,41 @@ def _package(target):
     return bench_config.IMPLEMENTATIONS[target].rsplit(".", 1)[0]
 
 
-def fit_with_history(data, spec, dgps):
-    """Refit a propensity model keeping the parts ``fit_propensity`` discards.
+def fit_with_history(data, spec, dgps, methods):
+    """Fit a propensity model, keeping what the estimator itself discards.
 
-    ``methods.fit_propensity`` returns only the fitted probabilities, so the
-    results object -- and with it ``converged`` and the iteration count -- is
-    thrown away.  statsmodels sets ``converged = False`` and raises nothing
-    when IRLS exhausts its 100 iterations, so a failure to converge is
-    invisible to the study as submitted.  Refitting here recovers it.
+    Each implementation is audited through its own solver, so this reports what
+    that implementation would really do, not what a reference fit would do in
+    its place.
+
+    For the baseline that means refitting with statsmodels and reading back the
+    results object: ``methods.fit_propensity`` returns only the fitted
+    probabilities, so ``converged`` and the iteration count are thrown away,
+    and statsmodels sets ``converged = False`` and raises nothing when IRLS
+    exhausts its 100 iterations -- a failure the study as submitted could not
+    see.  For the optimized code the solver reports those numbers itself,
+    through a ``ConvergenceReport``, which is the point of having written it.
     """
-    import statsmodels.api as sm
-
     X = dgps.design_matrix(data, spec["terms"])
-    fitted = sm.GLM(data["D"].to_numpy(dtype=float), X,
-                    family=sm.families.Binomial()).fit()
-    history = getattr(fitted, "fit_history", {}) or {}
-    return fitted.predict(X), {
-        "converged": bool(getattr(fitted, "converged", True)),
-        "irls_iterations": int(history.get("iteration", -1)),
+
+    if hasattr(methods, "ConvergenceReport"):
+        report = methods.ConvergenceReport()
+        fitted = methods.fit_logistic(X, data["D"].to_numpy(dtype=float), report)
+        converged = report.failures == 0
+        iterations = report.max_iterations
+    else:
+        import statsmodels.api as sm
+
+        model = sm.GLM(data["D"].to_numpy(dtype=float), X,
+                       family=sm.families.Binomial()).fit()
+        fitted = model.predict(X)
+        history = getattr(model, "fit_history", {}) or {}
+        converged = bool(getattr(model, "converged", True))
+        iterations = int(history.get("iteration", -1))
+
+    return fitted, {
+        "converged": converged,
+        "irls_iterations": int(iterations),
         "rank": int(np.linalg.matrix_rank(X)),
         "n_columns": int(X.shape[1]),
         "condition_number": float(np.linalg.cond(X)),
@@ -104,11 +121,16 @@ def audit(target, scenarios, sizes, n_sim, seed):
                 rng = np.random.default_rng(seeds[replicate])
                 with warnings.catch_warnings(record=True) as caught:
                     warnings.simplefilter("always")
-                    np.seterr(all="warn")
+                    # Underflow is not an error here: the stable logistic is
+                    # written so that an extreme linear predictor underflows to
+                    # the correct limit of 0 or 1 rather than overflowing to an
+                    # infinity.  Everything else is surfaced.
+                    np.seterr(all="warn", under="ignore")
 
                     data = dgps.generate(scenario, n, rng)
                     for ps_name in ps_names:
-                        propensity, fit = fit_with_history(data, spec[ps_name], dgps)
+                        propensity, fit = fit_with_history(
+                            data, spec[ps_name], dgps, methods)
                         diagnostic_rows.append({
                             "target": target, "scenario": scenario, "n": n,
                             "replicate": replicate, "ps_model": ps_name,

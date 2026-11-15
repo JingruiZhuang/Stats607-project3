@@ -8,6 +8,12 @@ Horvitz-Thompson, outcome-regression and doubly robust estimators with correct a
 deliberately misspecified nuisance models. The design is documented in [ADEMP.md](ADEMP.md)
 and the critical discussion in [ANALYSIS.md](ANALYSIS.md).
 
+For Unit 3 the study was optimized for speed and numerical stability. It now runs **24 times
+faster** in serial and **57 times faster** on eight cores, and produces the same results.
+[docs/BASELINE.md](docs/BASELINE.md) measures the Unit 2 code it started from and
+[docs/OPTIMIZATION.md](docs/OPTIMIZATION.md) sets out what was changed, what it bought and
+what it cost.
+
 ## Setup
 
 ```
@@ -18,18 +24,35 @@ pip install -r requirements.txt
 
 ## Running
 
+The study:
+
 ```
 make all        # simulate, summarise, and build all figures
 make simulate   # raw estimates  -> results/raw/estimates.csv
 make analyze    # summary table  -> results/raw/summary.csv
 make figures    # figures        -> results/figures/
+make parallel   # the simulation on every core
 make test       # test suite
 make clean      # remove generated files
 ```
 
-Estimated runtime: about 22 seconds for `make all` on a laptop, of which 19 seconds is the
-simulation itself; `make test` takes a further 9 seconds. Rerunning `make all` from clean
-reproduces the committed figures byte for byte.
+The performance study. `TARGET` selects the implementation, `baseline` (the frozen Unit 2
+code) or `optimized` (the current `src`):
+
+```
+make profile TARGET=baseline      # cProfile a representative run
+make complexity                   # runtime against n, both implementations
+make benchmark                    # baseline vs optimized, the ladder, core scaling
+make stability-check TARGET=...   # warnings, convergence and weight diagnostics
+make perf-figures                 # the performance figures
+make performance                  # all of the above, in order
+make regression                   # the evidence that the optimizations preserved results
+```
+
+Estimated runtime: about 3 seconds for `make all`, of which 0.9 seconds is the simulation;
+`make test` takes a further 7 seconds. `make benchmark` takes several minutes, because it
+reruns the Unit 2 code several times over. Rerunning `make all` from clean reproduces the
+committed figures byte for byte.
 
 ## Key findings
 
@@ -43,18 +66,31 @@ robust.
 ## Layout
 
 ```
-src/config.py       simulation parameters and model specifications
-src/dgps.py         data-generating mechanisms
-src/methods.py      the estimators
-src/metrics.py      performance measures
-src/simulation.py   orchestration; writes raw estimates
-src/analyze.py      raw estimates -> summary table
-src/figures.py      figures
-tests/              DGP, method, output and reproducibility checks
+src/config.py        simulation parameters and model specifications
+src/dgps.py          data-generating mechanisms
+src/methods.py       the estimators, and the logistic solver underneath them
+src/metrics.py       performance measures
+src/simulation.py    orchestration; batching, parallelism, writes raw estimates
+src/analyze.py       raw estimates -> summary table
+src/figures.py       figures
+
+src/bench_config.py  settings for the performance harness, kept apart from the design
+src/profile_run.py   cProfile a run and attribute its time
+src/complexity.py    runtime against n, with power-law and affine fits
+src/benchmark.py     baseline vs optimized, the optimization ladder, core scaling
+src/stability.py     warnings, convergence and inverse-probability weight diagnostics
+src/perf_figures.py  the performance figures
+
+baseline/            the Unit 2 simulation code, frozen, as the reference to measure against
+tests/               DGP, method, output and reproducibility checks
+tests/test_regression.py   that the optimizations preserved the study's results
+docs/                the baseline measurement and the optimization record
 ```
 
 Outputs: `results/raw/estimates.csv` holds one row per estimate (20,000 rows),
-`results/raw/summary.csv` one row per cell, and `results/figures/` the three figures.
+`results/raw/summary.csv` one row per cell, `results/figures/` the figures,
+`results/benchmarks/` and `results/profiles/` the performance measurements, and
+`results/baseline/` the committed Unit 2 estimates that the regression tests compare against.
 
 ## AI assistance
 

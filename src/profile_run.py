@@ -25,11 +25,19 @@ logger = logging.getLogger(__name__)
 # estimators both call `design_matrix`, and `fit_propensity` contains the whole
 # statsmodels IRLS.  The table says where to look, it is not a partition.
 STAGES = [
+    # the baseline's names
     ("estimate: all estimators",          "methods.py", "estimate"),
     ("  fit_propensity",                  "methods.py", "fit_propensity"),
     ("    statsmodels IRLS",              "generalized_linear_model.py", "_fit_irls"),
     ("  OLS solve (lstsq wrapper)",       "methods.py", "_ols"),
     ("DGP: generate one dataset",         "dgps.py", "generate"),
+    # the optimized code's names
+    ("estimate_batch: all estimators",    "methods.py", "estimate_batch"),
+    ("  logistic fit (own IRLS)",         "methods.py", "fit_logistic"),
+    ("  least-squares solve",             "methods.py", "solve_ols"),
+    ("    linear solve / Cholesky",       "methods.py", "_solve"),
+    ("DGP: generate a batch",             "dgps.py", "generate_columns"),
+    # shared
     ("design_matrix (DGP + estimators)",  "dgps.py", "design_matrix"),
     ("with_treatment (DataFrame copy)",   "dgps.py", "with_treatment"),
 ]
@@ -37,12 +45,16 @@ STAGES = [
 # Where the time is physically spent.  Internal (`tottime`) time grouped by the
 # package the frame belongs to, which IS a partition of the run: every frame
 # counts once and the shares sum to 100%.
+# Built-in frames carry no path, so they are matched on the function name
+# instead: NumPy's C routines (`c_einsum`, `matmul`, the ufunc methods) would
+# otherwise be charged to the standard library, which is where the first
+# profile of the optimized code hid two thirds of its runtime.
 PACKAGES = [
-    ("pandas", "/pandas/"),
-    ("statsmodels", "/statsmodels/"),
-    ("numpy", "/numpy/"),
-    ("this study's own code", "/project 3/"),
-    ("python stdlib / builtins", None),
+    ("pandas", "/pandas/", ()),
+    ("statsmodels", "/statsmodels/", ()),
+    ("numpy", "/numpy/", ("numpy", "ufunc", "multiarray", "matmul", "dot")),
+    ("this study's own code", "/project 3/", ()),
+    ("python stdlib / builtins", None, ()),
 ]
 
 # Call counts worth reporting per replicate, with the number of *distinct*
@@ -50,7 +62,8 @@ PACKAGES = [
 # redundant computation that caching or restructuring can remove outright.
 # The distinct counts are properties of the design in `config`, computed below.
 COUNTED = [
-    ("propensity fits", "methods.py", "fit_propensity"),
+    ("logistic fits performed", "methods.py", "fit_logistic"),
+    ("propensity fits requested", "methods.py", "fit_propensity"),
     ("design matrices built", "dgps.py", "design_matrix"),
     ("DataFrame copies (with_treatment)", "dgps.py", "with_treatment"),
     ("OLS solves", "methods.py", "_ols"),
@@ -115,14 +128,17 @@ def stage_times(stats):
 
 def package_times(stats):
     """Internal seconds grouped by package: a true partition of the run."""
-    totals = {label: 0.0 for label, _ in PACKAGES}
+    totals = {label: 0.0 for label, *_ in PACKAGES}
     for key, entry in stats.stats.items():
-        path, tottime = key[0], entry[2]
-        for label, marker in PACKAGES:
-            if marker is None or marker in path:
+        path, function, tottime = key[0], key[2], entry[2]
+        for label, marker, builtins in PACKAGES:
+            matched = (marker is None
+                       or marker in path
+                       or (path == "~" and any(b in function for b in builtins)))
+            if matched:
                 totals[label] += tottime
                 break
-    return [(label, totals[label]) for label, _ in PACKAGES]
+    return [(label, totals[label]) for label, *_ in PACKAGES]
 
 
 def _table(rows, total, header, note):
@@ -131,8 +147,10 @@ def _table(rows, total, header, note):
     print(note, file=out)
     print(f"{'':<34}{'seconds':>10}{'share':>9}", file=out)
     for label, seconds in rows:
+        if seconds <= 0.0:
+            continue                      # not part of this implementation
         share = 100.0 * seconds / total if total else 0.0
-        print(f"{label:<34}{seconds:>10.2f}{share:>8.1f}%", file=out)
+        print(f"{label:<34}{seconds:>10.3f}{share:>8.1f}%", file=out)
     return out.getvalue()
 
 
@@ -164,14 +182,23 @@ def report(stats, elapsed, target, scenarios, n_replicates, out_dir, top=25):
     print("Calls per replicate", file=buffer)
     print(f"{'':<34}{'per rep':>10}", file=buffer)
     for label, per in counts:
-        print(f"{label:<34}{per:>10.1f}", file=buffer)
-    needed = distinct_propensity_fits(scenarios)
-    done = next(per for label, per in counts if label == "propensity fits")
+        print(f"{label:<34}{per:>10.3f}", file=buffer)
+    needed = distinct_propensity_fits(scenarios) / len(scenarios)
     print(f"\nDistinct propensity models the design needs per replicate: "
-          f"{needed / len(scenarios):.1f}", file=buffer)
-    print(f"So {100 * (1 - needed / len(scenarios) / done):.0f}% of the "
-          f"propensity fits recompute a result the replicate already holds.\n",
-          file=buffer)
+          f"{needed:.1f}", file=buffer)
+    # A batched implementation fits a whole block of replicates in one call, so
+    # its calls-per-replicate is below one by design and the redundancy
+    # arithmetic below does not apply to it.
+    done = dict(counts).get("propensity fits requested", 0.0)
+    if done >= needed:
+        print(f"So {100 * (1 - needed / done):.0f}% of the propensity fits "
+              f"recompute a result the replicate already holds.\n", file=buffer)
+    else:
+        batched = dict(counts).get("logistic fits performed", 0.0)
+        print(f"Logistic fits are performed {batched:.3f} times per replicate: "
+              f"each call fits a whole\nbatch of replicates at once, and each "
+              f"model is fitted once per batch rather than\nonce per estimator "
+              f"that asks for it.\n", file=buffer)
 
     print(_table(package_times(stats), internal,
                  "Internal time by package",

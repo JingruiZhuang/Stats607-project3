@@ -52,35 +52,47 @@ def time_total(module, scenario, n, n_sim, seed, tmp_path, repeats=3):
 
 
 def time_components(target, scenario, n, n_sim, seed, repeats=3):
-    """Seconds spent in the DGP and in the estimators, measured separately.
+    """Seconds spent drawing the data and seconds spent estimating, separately.
 
-    Returns ``None`` for an implementation that has no per-replicate entry
-    point, which is what a fully batched version looks like.
+    Each implementation is split at its own natural seam and timed through the
+    entry point it actually uses, so the two components always sum to roughly
+    the total plotted beside them: the baseline one replicate at a time, the
+    optimized one batch at a time.  Timing the optimized code through its
+    per-replicate API instead would measure a path the study never takes.
     """
     package = _package(target)
     simulation = importlib.import_module(f"{package}.simulation")
     dgps = importlib.import_module(f"{package}.dgps")
     methods = importlib.import_module(f"{package}.methods")
-    if not hasattr(simulation, "run_replicate"):
-        return None
 
     cells = simulation.cells(scenario)
     seeds = np.random.SeedSequence(seed).spawn(n_sim)
+    batched = hasattr(methods, "estimate_batch")
     timings = {"dgp": float("inf"), "method": float("inf")}
 
     def one_pass():
         dgp_seconds = 0.0
         method_seconds = 0.0
-        for replicate in range(n_sim):
-            rng = np.random.default_rng(seeds[replicate])
+        if batched:
+            generators = [np.random.default_rng(s) for s in seeds]
             started = time.perf_counter()
-            data = dgps.generate(scenario, n, rng)
-            dgp_seconds += time.perf_counter() - started
+            columns = dgps.generate_columns(scenario, n, generators, n_sim=n_sim)
+            dgp_seconds = time.perf_counter() - started
 
             started = time.perf_counter()
-            for _, family, ps_name, or_name in cells:
-                methods.estimate(data, scenario, family, ps_name, or_name)
-            method_seconds += time.perf_counter() - started
+            methods.estimate_batch(columns, scenario, cells)
+            method_seconds = time.perf_counter() - started
+        else:
+            for replicate in range(n_sim):
+                rng = np.random.default_rng(seeds[replicate])
+                started = time.perf_counter()
+                data = dgps.generate(scenario, n, rng)
+                dgp_seconds += time.perf_counter() - started
+
+                started = time.perf_counter()
+                for _, family, ps_name, or_name in cells:
+                    methods.estimate(data, scenario, family, ps_name, or_name)
+                method_seconds += time.perf_counter() - started
         timings["dgp"] = min(timings["dgp"], dgp_seconds)
         timings["method"] = min(timings["method"], method_seconds)
 
