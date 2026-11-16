@@ -84,15 +84,17 @@ once — and it is the more alarming table.
 
 | package | share |
 |---|---|
-| pandas | **41.1%** |
-| numpy | 22.5% |
-| Python stdlib and builtins | 16.8% |
-| statsmodels | 15.9% |
+| pandas | **41.3%** |
+| numpy | 28.3% |
+| statsmodels | 15.8% |
+| Python stdlib and builtins | 10.9% |
 | this study's own code | 3.7% |
 
 The study spends 41% of its time in pandas and 1.5% in the linear algebra it
-exists to perform. The run makes 16.8 million function calls for 400
-replicates: **42,000 Python calls per replicate**, to produce eight numbers
+exists to perform. The numpy row is not the linear algebra either: it is
+overwhelmingly the cost of *constructing* thousands of tiny arrays. The run
+makes 16.8 million function calls for 400 replicates: **42,078 Python calls
+per replicate**, to produce eight numbers
 from 500 rows of data.
 
 ### The three bottlenecks, named

@@ -73,11 +73,20 @@ performance: profile complexity benchmark stability-check budget perf-figures
 regression:
 	$(PYTHON) -m pytest -q tests/test_regression.py
 
+# The figures `make all` can rebuild in seconds, and the ones it cannot.
+# `clean` removes only the first kind: the performance figures cost minutes of
+# benchmarking to redraw, so deleting them with the study's own outputs would
+# make `make clean` a far more expensive command than it looks.
+STUDY_FIGURES := bias_grid distributions extension
+PERF_FIGURES  := benchmark complexity overhead speedup stability_weights budget
+
 clean:
 	rm -f results/raw/*.csv results/raw/*.pkl
-	rm -f results/figures/*.png results/figures/*.pdf results/figures/.stamp
+	rm -f $(addprefix results/figures/,$(addsuffix .png,$(STUDY_FIGURES)))
+	rm -f results/figures/.stamp
 	rm -rf __pycache__ src/__pycache__ baseline/__pycache__ tests/__pycache__ \
 	       .pytest_cache
 
 clean-perf:
 	rm -f $(BENCH)/*.csv $(PROFILES)/*.prof $(PROFILES)/*.txt
+	rm -f $(addprefix results/figures/,$(addsuffix .png,$(PERF_FIGURES)))

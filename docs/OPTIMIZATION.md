@@ -11,9 +11,9 @@ work started from; this document is what was done about it and what it cost.
 | simulation, serial | 16.96 s | **0.70 s** | **24.1x** |
 | simulation, 8 workers | — | **0.30 s** | **56.8x** |
 | `make all`, end to end | 19.4 s | **2.6 s** | 7.3x |
-| Python calls per replicate | 42,078 | **31** | 1,370x fewer |
+| Python calls per replicate | 42,078 | **41** | 1,027x fewer |
 | logistic fits per replicate | 8 | **2** | 4x fewer |
-| time in pandas | 41% | **1.5%** | |
+| time in pandas | 41% | **2.9%** | |
 | runtime that does not scale with n, at n = 500 | 74–81% | **0–6%** | |
 | empirical complexity at large n | `n^0.71`–`n^0.79` | **`n^1.04`** | |
 
@@ -103,7 +103,7 @@ namespace = {name: source[name] for name in _NAMES[term] if name in source}
 value = eval(code, _EMPTY_GLOBALS, namespace)
 ```
 
-**Impact.** Pandas falls from 41% of internal time to 1.5%, and the DataFrame
+**Impact.** Pandas falls from 41% of internal time to 2.9%, and the DataFrame
 copies disappear. Combined with optimizations 1 and 3 this is the first rung of
 the ladder: **9.9x**, from 16.96 s to 1.72 s, before any batching at all.
 
@@ -257,6 +257,19 @@ runs it cannot affect its result. Each worker returns its own
 `ConvergenceReport`, which the parent merges — a warning raised inside a worker
 would never reach the parent, and a silent non-convergence is precisely what
 this study was missing a way to see.
+
+```python
+# before: every batch run in this process, one after another
+blocks = [run_batch(scenario, n, seeds, start, report)
+          for scenario, n, seeds, start in work]
+
+# after: batches handed to workers, each returning its own convergence counts
+results = Parallel(n_jobs=jobs, backend="loky")(
+    delayed(_batch_with_report)(*arguments) for arguments in work)
+for block, counts in results:
+    report.fits += counts.fits
+    report.failures += counts.failures
+```
 
 **Impact.** A further **2.4x**, to 0.30 s, for **56.8x** overall. But the
 scaling is poor and the reason is interesting: 2.6x on four workers and
@@ -414,7 +427,48 @@ of work that a profile would have found in a minute. And the thing I am most
 glad of is not a speedup at all: the baseline could have failed to converge and
 said nothing, and now it cannot.
 
-## 8. Figures
+## 8. Profiling evidence, and figures
+
+Re-profiling the optimized code under the same harness — `make profile
+TARGET=optimized`, 200 replicates per scenario, full output in
+`results/profiles/optimized_profile.txt` — gives the other half of the tables
+in [BASELINE.md](BASELINE.md) section 2.
+
+**Internal time by package**, a partition of the run with every frame counted
+once:
+
+| package | baseline | optimized |
+|---|---|---|
+| pandas | **41.3%** | **2.9%** |
+| numpy | 28.3% | 12.2% |
+| statsmodels | 15.8% | — (gone) |
+| Python stdlib and builtins | 10.9% | 1.5% |
+| this study's own code | 3.7% | **83.4%** |
+
+This is the single table that says the exercise worked. The baseline spent 41%
+of its time in a data frame library and 3.7% in its own code; the optimized
+run spends 83.4% in its own code, and what remains in numpy is the linear
+algebra that code exists to perform. The share in numpy *fell* while the
+arithmetic stayed the same, because the baseline's numpy time was largely
+thousands of tiny array constructions rather than the solves.
+
+**Cumulative time by stage**, which nest rather than partition:
+
+| stage | baseline | optimized |
+|---|---|---|
+| all estimators | 90.6% | 79.8% |
+| — of which the logistic fit | 50.6% | 45.4% |
+| — of which the least-squares solve | 1.5% | 11.2% |
+| draw the data | 9.0% | 12.8% |
+| `design_matrix` (DGP + estimators) | 35.5% | 6.9% |
+
+The *shape* barely moved: the logistic fit was half the run before and is
+nearly half the run now. What changed is what a replicate costs in absolute
+terms, and the fact that the solve has risen from 1.5% to 11.2% is the
+clearest sign that the overhead around it is gone — the same arithmetic is now
+a visible share of a run twenty-four times shorter. `design_matrix` falling
+from 35.5% to 6.9% is optimization 2, and the 16.8 million function calls for
+these 400 replicates are now 16,387.
 
 | figure | what it shows |
 |---|---|
@@ -423,3 +477,4 @@ said nothing, and now it cannot.
 | `results/figures/overhead.png` | the fixed share of a replicate's cost, before and after |
 | `results/figures/speedup.png` | parallel speedup against worker count, against the linear ideal |
 | `results/figures/stability_weights.png` | the numerical exposure documented in BASELINE.md |
+| `results/figures/budget.png` | the replicate counts of [EXTENSIONS.md](EXTENSIONS.md) |
