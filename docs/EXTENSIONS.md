@@ -18,7 +18,7 @@ precision it buys, the cost of this study stops depending on `n` at all.**
 | simulation at `n = 4000` | 5.78 s | **0.37 s** | **94% less** |
 
 At the study's own `n = 500` the saving is smaller but real: scenario A needs
-475 replicates, not 1,000, which is 18% off `make simulate` and `make analyze`
+475 replicates, not 1,000, which is 19% off `make simulate` and `make analyze`
 together for identical reported precision.
 
 Measured by `make budget` (`src/budget.py`), which runs a 2,000-replicate pilot

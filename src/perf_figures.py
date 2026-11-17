@@ -20,8 +20,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from . import bench_config, budget, complexity, config
-from .figures import FAMILY_COLOUR, GRID, INK, INK_SOFT, SURFACE, style
+from . import bench_config, budget, config
+from .figures import FAMILY_COLOUR, GRID, INK, INK_SOFT, style
 
 logger = logging.getLogger(__name__)
 

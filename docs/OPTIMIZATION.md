@@ -1,8 +1,12 @@
 # Optimizing the Unit 2 simulation study
 
-Five optimizations, measured against `baseline/`, the frozen Unit 2 code.
-Hardware, versions and timing method as in [BASELINE.md](BASELINE.md); every
-timing is the smallest of three runs after a warm-up.
+Five optimizations, covering all four categories the unit lists: **algorithmic
+improvements** (1), **array programming** (2, 4), **numerical stability** (3)
+and **parallelization** (5).
+
+Measured against `baseline/`, the frozen Unit 2 code. Hardware, versions and
+timing method as in [BASELINE.md](BASELINE.md); every timing is the smallest of
+three runs after a warm-up.
 
 ## 1. Cache the propensity fit within a replicate
 
