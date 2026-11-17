@@ -103,24 +103,27 @@ def dispersion(raw, scenario, n, rng):
 
 
 def pilot(target, scenarios, sizes, n_sim, seed, out_dir):
-    """Run the pilot across the grid of sample sizes and summarise dispersion."""
+    """Run the pilot across the grid of sample sizes and summarise dispersion.
+
+    Only the summary is kept.  The estimates themselves are written to
+    ``tmp_path`` by each run and are not needed again: everything downstream is
+    a function of each cell's dispersion.
+    """
     simulation = importlib.import_module(bench_config.IMPLEMENTATIONS[target])
     os.makedirs(out_dir, exist_ok=True)
     tmp_path = os.path.join(out_dir, f"{target}_budget_estimates.csv")
 
     rng = np.random.default_rng(seed)
     frames = []
-    estimates = []
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         for n in sizes:
             for scenario in scenarios:
                 raw = simulation.run([scenario], n, n_sim, seed, tmp_path)
                 frames.append(dispersion(raw, scenario, n, rng))
-                estimates.append(raw.assign(n=n))
                 logger.info("pilot scenario %s n=%-5d %d replicates",
                             scenario, n, n_sim)
-    return pd.concat(frames, ignore_index=True), pd.concat(estimates, ignore_index=True)
+    return pd.concat(frames, ignore_index=True)
 
 
 def costs(target, scenarios, sizes, n_sim, seed, out_dir, repeats=3):
@@ -298,98 +301,6 @@ def measure_comparison(pilot_frame, cost_frame, n, n_sim_uniform):
     return pd.concat(frames, ignore_index=True)
 
 
-def pilot_size_sensitivity(estimates, sizes, n_sim_uniform, n,
-                           measure="bias_mean", seed=0, target=None):
-    """How large a pilot has to be before its recommendation stops moving.
-
-    The recommendation is a function of estimated dispersions, and an estimated
-    variance from m replicates carries a relative standard error of
-    sqrt(2/(m-1)); a replicate count proportional to it inherits that error.
-    Evaluated on prefixes of the pilot rather than on fresh runs, so each
-    smaller pilot is a sub-run of the larger one and the sequence shows
-    convergence rather than independent noise.  The precision target is held at
-    the value the full pilot implies, so that what moves across rows is the
-    recommendation and not the thing it is aiming at.
-    """
-    at_n = estimates[estimates["n"] == n]
-    rows = []
-    available = int(at_n["replicate"].max()) + 1
-    for m in sorted(size for size in sizes if size <= available)[::-1]:
-        rng = np.random.default_rng(seed)
-        prefix = at_n[at_n["replicate"] < m]
-        frames = [dispersion(group, scenario, n, rng)
-                  for scenario, group in prefix.groupby("scenario", sort=False)]
-        frame = usable(pd.concat(frames, ignore_index=True))
-        if target is None:
-            target = uniform_target(frame, n_sim_uniform, measure)
-        for scenario, cell in frame.groupby("scenario", sort=False):
-            needed = binding_cell(cell, target, measure)
-            rows.append({"pilot_n_sim": int(m), "n": int(n), "scenario": scenario,
-                         "measure": measure, "target_mcse": target,
-                         "n_sim_allocated": int(np.ceil(needed["n_sim_required"])),
-                         "binding_estimator": needed["binding_estimator"]})
-    table = (pd.DataFrame(rows)
-               .sort_values(["scenario", "pilot_n_sim"])
-               .reset_index(drop=True))
-    full = table[table["pilot_n_sim"] == table["pilot_n_sim"].max()].set_index("scenario")
-    table["relative_error"] = [
-        row["n_sim_allocated"] / full.loc[row["scenario"], "n_sim_allocated"] - 1.0
-        for _, row in table.iterrows()]
-    return table
-
-
-# ----------------------------------------------------------- bootstrap budget
-
-def bootstrap_budget(estimates, n, sizes, n_seeds, n_sim=None, seed=0):
-    """The bootstrap's own Monte Carlo error, against the number of resamples.
-
-    The quantile standard errors in ``metrics.performance`` are themselves
-    estimates, and their noise is a second layer of Monte Carlo error that the
-    study never measured.  Repeating the bootstrap under independent seeds and
-    taking the spread of the results says how many resamples are needed before
-    that second layer is negligible beside the first -- which is the same
-    budget question as the replicate count, asked of the analysis stage.
-
-    Run on the widest and the narrowest cell of each scenario, at the study's
-    own replicate count, rather than on all twenty: the quantity being measured
-    is a property of the resampling, so it varies far less across cells than
-    across resample counts, and the sweep is quadratic in work.
-    """
-    n_sim = config.N_SIM if n_sim is None else n_sim
-    at_n = estimates[(estimates["n"] == n) & (estimates["replicate"] < n_sim)]
-
-    rows = []
-    for scenario, group in at_n.groupby("scenario", sort=False):
-        spread = group.groupby("estimator")["estimate"].std(ddof=1)
-        chosen = {spread.idxmax(): "widest", spread.idxmin(): "narrowest"}
-        for estimator, role in chosen.items():
-            values = group.loc[group["estimator"] == estimator,
-                               "estimate"].to_numpy(dtype=float)
-            for size in sizes:
-                draws = np.array([
-                    _quantile_ses(values, size, np.random.default_rng([seed, i]))
-                    for i in range(n_seeds)])
-                medians, iqrs = draws[:, 0], draws[:, 1]
-                rows.append({
-                    "scenario": scenario, "estimator": estimator, "role": role,
-                    "n": int(n), "n_bootstrap": int(size), "n_sim": values.size,
-                    "se_bias_median": float(medians.mean()),
-                    "jitter_bias_median": float(medians.std(ddof=1) / medians.mean()),
-                    "jitter_iqr": float(iqrs.std(ddof=1) / iqrs.mean()),
-                    # The first layer, for scale: how much the standard error
-                    # would move if the study drew a different set of
-                    # replicates rather than a different set of resamples.
-                    "replicate_jitter": float(1.0 / np.sqrt(2.0 * (values.size - 1))),
-                })
-    frame = pd.DataFrame(rows)
-    summary = (frame.groupby("n_bootstrap", as_index=False)
-                    .agg(jitter_bias_median=("jitter_bias_median", "mean"),
-                         jitter_iqr=("jitter_iqr", "mean"),
-                         worst_jitter_iqr=("jitter_iqr", "max"),
-                         replicate_jitter=("replicate_jitter", "mean")))
-    return frame, summary
-
-
 # ---------------------------------------------------------------- validation
 
 def validate(target, allocation, n, seed, out_dir):
@@ -453,8 +364,8 @@ def main():
         frame.to_csv(path, index=False)
         return path
 
-    pilot_frame, estimates = pilot(args.target, scenarios, sizes, args.n_sim,
-                                   args.seed, args.out_dir)
+    pilot_frame = pilot(args.target, scenarios, sizes, args.n_sim, args.seed,
+                        args.out_dir)
     cost_frame = costs(args.target, scenarios, sizes,
                        bench_config.BUDGET_TIMING_N_SIM, args.seed, args.out_dir)
     scaling = variance_scaling(pilot_frame)
@@ -470,18 +381,9 @@ def main():
     fixed = allocate(pilot_frame, cost_frame, config.N_SIM, args.measure,
                      target=study_target)
     measures = measure_comparison(pilot_frame, cost_frame, at_n, config.N_SIM)
-    sensitivity = pilot_size_sensitivity(
-        estimates, bench_config.BUDGET_PILOT_SIZES, config.N_SIM, at_n,
-        args.measure, args.seed)
-    bootstrap_cells, bootstrap = bootstrap_budget(
-        estimates, at_n, bench_config.BUDGET_N_BOOTSTRAP,
-        bench_config.BUDGET_BOOTSTRAP_SEEDS, min(config.N_SIM, args.n_sim),
-        args.seed)
 
     for frame, name in ((pilot_frame, "dispersion"), (cost_frame, "cost"),
                         (scaling, "scaling"), (allocation, "allocation"),
-                        (sensitivity, "pilot_size"), (bootstrap, "bootstrap"),
-                        (bootstrap_cells, "bootstrap_cells"),
                         (fixed, "fixed_target"), (measures, "measures")):
         logger.info("wrote %s", write(frame, name))
 
@@ -517,11 +419,6 @@ def main():
 
     print(f"\nReplicate counts each reported measure needs at n = {at_n}")
     print(measures.to_string(**fmt))
-
-    print("\nSensitivity of the recommendation to the pilot's own size")
-    print(sensitivity.to_string(**fmt))
-    print("\nBootstrap jitter of the quantile standard errors, by resample count")
-    print(bootstrap.to_string(**fmt))
 
     if not args.no_validate:
         check = validate(args.target, allocation, at_n, args.seed, args.out_dir)
