@@ -295,7 +295,6 @@ visible share of a run 24 times shorter. 16.8 million function calls for these
 |---|---|
 | `benchmark.png` | runtime against simulation size, and the ladder of optimizations |
 | `complexity.png` | runtime against n, log-log, both implementations, fitted exponents |
-| `overhead.png` | the fixed share of a replicate's cost, before and after |
 | `speedup.png` | parallel speedup against worker count, against the linear ideal |
 
 ## 7. Lessons learned

@@ -84,7 +84,7 @@ baseline-reference:
 # benchmarking to redraw, so deleting them with the study's own outputs would
 # make `make clean` a far more expensive command than it looks.
 STUDY_FIGURES := bias_grid distributions extension
-PERF_FIGURES  := benchmark complexity overhead speedup stability_weights budget
+PERF_FIGURES  := benchmark complexity speedup budget
 
 clean:
 	rm -f results/raw/*.csv results/raw/*.pkl

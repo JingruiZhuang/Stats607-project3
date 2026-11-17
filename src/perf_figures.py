@@ -4,6 +4,10 @@ Shares the palette and styling of ``src.figures`` so that the performance
 figures read as part of the same report, and draws only from the CSVs written
 by ``src.complexity``, ``src.benchmark`` and ``src.stability`` -- no figure
 here re-runs the simulation, so a plot can be redrawn without a fresh sweep.
+
+The figures are the three comparisons the unit asks for -- empirical
+complexity, overall timing, and parallel speedup -- plus the budget figure of
+docs/EXTENSIONS.md.
 """
 
 import argparse
@@ -116,131 +120,6 @@ def plot_complexity(timings, fits, out_path, at_n=None):
                  "the slope is the empirical complexity",
                  x=0.011, ha="left", fontsize=10.5)
     fig.tight_layout(rect=(0, 0.045, 1, 0.95))
-    fig.savefig(out_path, bbox_inches="tight")
-    plt.close(fig)
-    logger.info("wrote %s", out_path)
-
-
-def plot_overhead(timings, out_path, at_n=None):
-    """The fixed cost of a replicate, as a share of its cost at each n.
-
-    The affine fit t = c + a n splits a replicate into a part that scales with
-    the data and a part that does not.  Plotted as a share, it answers the
-    question an optimizer needs answered before choosing a strategy: at the n
-    this study actually runs at, is there more to gain from faster arithmetic
-    or from less Python?
-    """
-    style()
-    at_n = at_n if at_n is not None else config.N
-    scenarios = list(dict.fromkeys(timings["scenario"]))
-    fig, ax = plt.subplots(figsize=(6.4, 4.2))
-
-    grid = np.geomspace(timings["n"].min(), timings["n"].max(), 200)
-    for target in dict.fromkeys(timings["target"]):
-        for scenario in scenarios:
-            panel = timings[(timings["scenario"] == scenario)
-                            & (timings["target"] == target)].sort_values("n")
-            if panel.empty:
-                continue
-            fit = complexity.fit_affine(panel["n"],
-                                        panel["seconds_per_replicate"], at_n)
-            fixed = max(fit["fixed_seconds"], 0.0)
-            share = 100.0 * fixed / (fixed + fit["seconds_per_observation"] * grid)
-            ax.plot(grid, share, linewidth=1.9,
-                    color=TARGET_COLOUR.get(target, INK),
-                    linestyle="-" if scenario == "A" else (0, (4, 2)),
-                    label=f"{TARGET_LABEL.get(target, target)}, scenario {scenario}")
-            at = 100.0 * max(fit["fixed_share_at_n"], 0.0)
-            ax.plot([at_n], [at], marker="o", markersize=5.5,
-                    markeredgecolor=SURFACE, markeredgewidth=1.2,
-                    color=TARGET_COLOUR.get(target, INK), zorder=4)
-            ax.annotate(f"{at:.0f}%", xy=(at_n, at), xytext=(8, 4),
-                        textcoords="offset points", fontsize=8,
-                        color=TARGET_COLOUR.get(target, INK))
-
-    ax.axvline(at_n, color=INK, linewidth=1.0, linestyle=(0, (4, 3)), zorder=0)
-    ax.set_xscale("log")
-    ax.set_ylim(0, 100)
-    ax.grid(True, color=GRID, linewidth=0.6, zorder=0)
-    ax.set_xlabel("sample size n")
-    ax.set_ylabel("share of a replicate that does not scale with n (%)")
-    ax.annotate("at the study's n, the dot marks the share of each\n"
-                "implementation's runtime that no sample size amortises",
-                xy=(0.98, 0.95), xycoords="axes fraction", ha="right",
-                va="top", fontsize=8, color=INK_SOFT)
-    ax.legend(frameon=False, loc="lower left", fontsize=8)
-    fig.suptitle("The baseline's time at the study's n was overhead; "
-                 "the optimized code's is arithmetic",
-                 x=0.011, ha="left", fontsize=10.5)
-    fig.tight_layout(rect=(0, 0, 1, 0.94))
-    fig.savefig(out_path, bbox_inches="tight")
-    plt.close(fig)
-    logger.info("wrote %s", out_path)
-
-
-def plot_stability(summary, out_path):
-    """What the estimators are exposed to numerically, against n.
-
-    Left: the largest inverse-probability weight in a replicate -- the median
-    over replicates, with the worst replicate shaded above it, because a
-    worst-case read off 200 replicates is itself noisy.  Right: the effective
-    sample size the weighting leaves behind, as a share of n.
-
-    Together they locate this study's numerical risk.  Nothing in the baseline
-    ever warns, yet in scenario B with the correct propensity model a typical
-    replicate contains a weight of order 20 and the weighting discards some
-    85% of the sample -- so a single draw can move a Monte Carlo mean, and no
-    diagnostic in the submitted code would say so.
-    """
-    style()
-    panel = summary[summary["target"] == "baseline"]
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4.4))
-
-    colour = {"A": "#2a78d6", "B": "#eb6834"}
-    for (scenario, ps_model), group in panel.groupby(["scenario", "ps_model"],
-                                                     sort=False):
-        group = group.sort_values("n")
-        correct = ps_model == "ps_true"
-        style_kw = dict(color=colour[scenario],
-                        linestyle="-" if correct else (0, (4, 2)),
-                        linewidth=1.9, marker="o", markersize=3.4,
-                        markeredgecolor="none", zorder=3)
-        label = (f"scenario {scenario}, "
-                 f"{'correct' if correct else 'false'} propensity model")
-
-        axes[0].plot(group["n"], group["median_max_weight"], label=label, **style_kw)
-        axes[0].fill_between(group["n"], group["median_max_weight"],
-                             group["max_weight"], color=colour[scenario],
-                             alpha=0.10, linewidth=0, zorder=1)
-        axes[1].plot(group["n"], 100.0 * group["min_effective_n"] / group["n"],
-                     label=label, **style_kw)
-
-    for ax, ylabel, title in (
-            (axes[0], "largest weight in a replicate",
-             "Inverse-probability weights, median replicate\n"
-             "(shading reaches the worst replicate seen)"),
-            (axes[1], "effective sample size, worst replicate (% of n)",
-             "Sample the weighting effectively leaves behind")):
-        ax.axvline(config.N, color=INK, linewidth=1.0, linestyle=(0, (4, 3)),
-                   zorder=0)
-        ax.annotate(f"study n = {config.N}", xy=(config.N, 0.02),
-                    xycoords=("data", "axes fraction"), xytext=(4, 0),
-                    textcoords="offset points", color=INK_SOFT, fontsize=8)
-        ax.set_xscale("log")
-        ax.grid(True, which="major", color=GRID, linewidth=0.6, zorder=0)
-        ax.set_xlabel("sample size n")
-        ax.set_ylabel(ylabel)
-        ax.set_title(title, loc="left", fontsize=9.5)
-    axes[0].set_yscale("log")
-    axes[1].set_ylim(0, 100)
-
-    handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="lower center", ncol=4, frameon=False,
-               fontsize=8, bbox_to_anchor=(0.5, -0.03))
-    fig.suptitle("Numerical exposure of the baseline, across conditions "
-                 "in which it raises no warning at all",
-                 x=0.011, ha="left", fontsize=10.5)
-    fig.tight_layout(rect=(0, 0.05, 1, 0.93))
     fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
     logger.info("wrote %s", out_path)
@@ -389,15 +268,7 @@ def main():
         timings = _frame(path("complexity.csv"), "complexity")
         fits = _frame(path("complexity_fits.csv"), "complexity")
         plot_complexity(timings, fits, out("complexity.png"))
-        plot_overhead(timings, out("overhead.png"))
-        drawn += 2
-
-    stability = path("stability_baseline_summary.csv")
-    if os.path.exists(stability):
-        plot_stability(pd.read_csv(stability), out("stability_weights.png"))
         drawn += 1
-    elif not args.skip_missing:
-        _frame(stability, "stability-check")
 
     benchmark, ladder = path("benchmark.csv"), path("benchmark_ladder.csv")
     if os.path.exists(benchmark) and os.path.exists(ladder):
