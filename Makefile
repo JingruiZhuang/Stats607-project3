@@ -11,7 +11,7 @@ PROFILES := results/profiles
 # costs time that would land in the measurement.
 PERF := TQDM_DISABLE=1 $(PYTHON)
 
-.PHONY: all simulate analyze figures test clean \
+.PHONY: all simulate analyze figures test clean baseline-reference \
         profile complexity benchmark parallel stability-check \
         perf-figures performance regression budget clean-perf
 
@@ -72,6 +72,12 @@ performance: profile complexity benchmark stability-check budget perf-figures
 
 regression:
 	$(PYTHON) -m pytest -q tests/test_regression.py
+
+# Rebuild the committed Unit 2 reference from the frozen code in baseline/.
+# Rarely needed -- the file is in the repo -- but it is what makes that file
+# reproducible rather than a number nobody can check.
+baseline-reference:
+	$(PERF) -m baseline.simulation --out results/baseline/estimates.csv
 
 # The figures `make all` can rebuild in seconds, and the ones it cannot.
 # `clean` removes only the first kind: the performance figures cost minutes of

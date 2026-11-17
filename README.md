@@ -50,6 +50,7 @@ make budget                       # replicates needed per scenario, and per n
 make perf-figures                 # the performance figures
 make performance                  # all of the above, in order
 make regression                   # the evidence that the optimizations preserved results
+make baseline-reference           # rebuild the committed Unit 2 estimates from baseline/
 ```
 
 Estimated runtime: about 3 seconds for `make all`, of which 0.9 seconds is the simulation;

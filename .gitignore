@@ -22,8 +22,12 @@ results/figures/.stamp
 results/profiles/*.prof
 results/profiles/*.txt
 !results/profiles/.gitkeep
-# baseline + benchmark data products
+# baseline + benchmark data products.  The Unit 2 estimates are the exception:
+# they are the reference every regression test compares against, so they are
+# committed rather than regenerated, and `make baseline-reference` rebuilds
+# them from the frozen code in baseline/.
 results/baseline/*.csv
+!results/baseline/estimates.csv
 results/benchmarks/*.csv
 results/profiles/*_profile_estimates.csv
 results/benchmarks/*_complexity_estimates.csv

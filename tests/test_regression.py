@@ -46,9 +46,18 @@ SUMMARY_TOLERANCE = 1e-6
 
 @pytest.fixture(scope="module")
 def reference():
-    """The committed Unit 2 estimates."""
+    """The committed Unit 2 estimates, rebuilt from ``baseline/`` if absent.
+
+    Rebuilt rather than skipped.  These are the checks that the optimizations
+    preserved the study's results, and a correctness test that quietly does
+    not run is worse than one that takes twenty seconds: a skip looks like a
+    pass in a summary line.
+    """
     if not os.path.exists(REFERENCE):
-        pytest.skip(f"{REFERENCE} not present")
+        from baseline import simulation as baseline_simulation
+        os.makedirs(os.path.dirname(REFERENCE), exist_ok=True)
+        baseline_simulation.run(list(config.SCENARIOS), config.N, config.N_SIM,
+                                config.MASTER_SEED, REFERENCE)
     return pd.read_csv(REFERENCE)
 
 
