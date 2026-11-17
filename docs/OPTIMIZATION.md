@@ -300,60 +300,42 @@ visible share of a run 24 times shorter. 16.8 million function calls for these
 
 ## 7. Lessons learned
 
-**Best return on investment.** Ranked by speedup per line changed, the order is
-almost the reverse of how interesting the techniques are:
+**Best return on investment.** Ranked by speedup per line changed — almost the
+reverse of how interesting the techniques are:
 
-1. **Caching the propensity fit.** Nine lines, removes three quarters of the
-   logistic regressions, cannot change an answer. If one thing generalises, it
-   is that the first question to ask a profile is not "what is slow" but "what
-   is computed more than once".
-2. **Getting pandas out of the inner loop.** The DataFrame was never the
-   structure the inner loop wanted; it was what the *outer* interface wanted,
-   and the fix was to stop confusing the two.
-3. **Batching.** The largest idea and by far the largest cost in readability.
-   Worth it mainly because BASELINE.md had already proved three quarters of the
-   runtime was fixed overhead — without that measurement it was a guess.
-4. **Writing the logistic solver.** Bought speed and bought back the
-   convergence reporting the study lacked, but it is the piece I would most
+1. **Caching the propensity fit.** Nine lines, three quarters of the logistic
+   regressions gone, cannot change an answer. The first question to ask a
+   profile is not "what is slow" but "what is computed twice".
+2. **Getting pandas out of the inner loop.** The DataFrame was what the outer
+   interface wanted, never what the inner loop wanted.
+3. **Batching.** The largest idea and the largest cost in readability. Worth it
+   because BASELINE.md had already proved three quarters of the runtime was
+   fixed overhead; without that measurement it was a guess.
+4. **Writing the logistic solver.** Bought speed, and bought back the
+   convergence reporting the study lacked — but it is the piece I would most
    want someone else to review.
 5. **Parallelism.** Last, and it earned its place there.
 
 **What surprised me.**
 
-*The study barely did any arithmetic.* I expected the logistic regressions to
-dominate because they are the only iterative thing here. They did — but
-`np.linalg.lstsq` was 1.5% of the run and pandas was 41%. The cost was never
-the mathematics; it was the eleven-column namespace rebuilt 28 times a
-replicate to get at it.
+*The study barely did any arithmetic.* `np.linalg.lstsq` was 1.5% of the run
+and pandas was 41%. The cost was never the mathematics; it was the
+eleven-column namespace rebuilt 28 times a replicate to reach it.
 
-*`np.einsum` was two thirds of my first optimized version.* I wrote the batched
-code with `einsum` because it expresses a batched contraction cleanly, then
-profiled it and found 2.1 s of 3.2 s inside `c_einsum`. einsum runs its own C
+*`np.einsum` was two thirds of my first batched version.* einsum runs its own C
 loop; `matmul` dispatches a stack to BLAS. Swapping them — same arithmetic,
-four lines — gave **2.3x**. I had optimized by reasoning about what *ought* to
-be fast, in the middle of a project about measuring.
+four lines — gave **2.3x**. I had optimized by reasoning about what ought to be
+fast, in the middle of a project about measuring.
 
-*The stable logistic underflows on purpose, and that looks like a bug.* The
-stability audit at first produced hundreds of `underflow encountered in
-logaddexp` warnings the baseline never raised. They are the function working:
-an extreme linear predictor should underflow to exactly 0 or 1, the correct
-limit, rather than overflow. Telling the benign floating-point event from the
-dangerous one took longer than writing the function.
+*The next bottleneck is sometimes the thing you added.* With everything else
+gone the profile pointed at my own overflow-safe `expit`, which
+`exp(-logaddexp(0, -x))` replaced at three ufunc passes. That version
+underflows by design, which first looked like a bug: telling the benign
+floating-point event from the dangerous one took longer than writing the
+function.
 
-*My own `expit` then became the largest single line.* With everything else
-gone, the profile pointed at the overflow-safe logistic I had written with two
-boolean masks and four fancy-indexed passes. `exp(-logaddexp(0, -x))` is three
-ufunc passes, equally overflow-free, and agrees to one unit in the last place.
-The next bottleneck is sometimes the thing you added.
-
-**Not worth the effort.**
-
-*Parallelism, at this study's size.* 2.4x for a dependency, a code path that
-only runs in worker processes, machinery to merge convergence reports across
-processes, and a test to prove workers change nothing — and all of that 2.4x is
-available from four cores. Against 24x already won in serial it is the rung I
-would drop first, kept only because it costs nothing to leave in and the study
-will eventually run at larger `n_sim`.
-
-*Chasing the batch size.* Runtime is flat for `BATCH_SIZE` between about 50 and
-1000; the knob exists for memory, not speed.
+**Not worth the effort.** *Parallelism at this size* — 2.4x for a dependency, a
+worker-only code path, cross-process report merging and a test to prove workers
+change nothing, with all of that 2.4x available from four cores, against the
+24x already won in serial. *Chasing the batch size* — runtime is flat between
+about 50 and 1000, so the knob exists for memory, not speed.
