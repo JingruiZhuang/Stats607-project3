@@ -1,5 +1,10 @@
 # Simulation budget: what the uniform design spends to no purpose
 
+*Optional extension: **Simulation Budget Optimization**. Section 7 answers
+**Pilot Study Design** as well, since sizing the study turned out to depend on
+how the pilot was sized; section 8 applies the same question to the analysis
+stage, which is not one of the three listed options.*
+
 The study of Unit 2 runs 1,000 replicates of every cell. That is a single
 number applied to twenty cells whose estimators differ in dispersion by a
 factor of three, at a sample size that could have been any of six. This
