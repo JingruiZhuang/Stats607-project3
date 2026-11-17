@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from . import bench_config, budget, complexity, config, metrics
+from . import bench_config, budget, complexity, config
 from .figures import FAMILY_COLOUR, GRID, INK, INK_SOFT, SURFACE, style
 
 logger = logging.getLogger(__name__)
@@ -246,22 +246,20 @@ def plot_stability(summary, out_path):
     logger.info("wrote %s", out_path)
 
 
-def plot_budget(dispersion, fixed, bootstrap, out_path, at_n=None):
-    """The four relationships a simulation budget is decided by.
+def plot_budget(dispersion, fixed, out_path, at_n=None):
+    """The three relationships a simulation budget is decided by.
 
-    Top left: how fast each cell's sampling variance falls with n, which is
-    what makes replicates at large n redundant.  Top right: the replicate count
-    that holds one precision target as n grows, against the 1/n line that
-    theory predicts.  Bottom left: what that does to the cost of the study --
-    the uniform design pays in proportion to n, the allocated one pays almost
-    nothing extra.  Bottom right: the same question asked of the analysis
-    stage, where the bootstrap's own noise has to be driven below the noise of
-    the replicates it is summarising before more resamples buy anything.
+    Left: how fast each cell's sampling variance falls with n, which is what
+    makes replicates at large n redundant.  Middle: the replicate count that
+    holds one precision target as n grows, against the 1/n line that theory
+    predicts.  Right: what the two together do to the cost of the study -- the
+    uniform design pays in proportion to n, the budgeted one pays almost
+    nothing extra.
     """
     style()
     at_n = at_n if at_n is not None else config.N
-    fig, axes = plt.subplots(2, 2, figsize=(11, 8.2))
-    (ax_var, ax_count), (ax_cost, ax_boot) = axes
+    fig, axes = plt.subplots(1, 3, figsize=(16.2, 4.8))
+    ax_var, ax_count, ax_cost = axes
 
     # --- variance against n, one line per cell
     sound = dispersion[dispersion["tail_share"] < budget.TAIL_SHARE_LIMIT]
@@ -342,37 +340,6 @@ def plot_budget(dispersion, fixed, bootstrap, out_path, at_n=None):
                       loc="left", fontsize=9.5)
     ax_cost.legend(frameon=False, loc="upper left", fontsize=8)
 
-    # --- the bootstrap's own noise
-    ax_boot.plot(bootstrap["n_bootstrap"],
-                 100.0 * bootstrap["jitter_bias_median"], linewidth=1.9,
-                 marker="o", markersize=4, markeredgecolor="none",
-                 color=FAMILY_COLOUR["HT"], zorder=3, label="median")
-    ax_boot.plot(bootstrap["n_bootstrap"], 100.0 * bootstrap["jitter_iqr"],
-                 linewidth=1.9, marker="o", markersize=4,
-                 markeredgecolor="none", color=FAMILY_COLOUR["OR"], zorder=3,
-                 label="interquartile range")
-    level = 100.0 * float(bootstrap["replicate_jitter"].iloc[0])
-    ax_boot.axhline(level, color=INK, linewidth=1.0, linestyle=(0, (4, 3)),
-                    zorder=1)
-    ax_boot.annotate("noise the replicates themselves contribute",
-                     xy=(0.02, level), xycoords=("axes fraction", "data"),
-                     xytext=(0, 5), textcoords="offset points", ha="left",
-                     color=INK_SOFT, fontsize=8)
-    ax_boot.axvline(metrics.N_BOOTSTRAP, color=INK_SOFT, linewidth=1.0,
-                    linestyle=(0, (4, 3)), zorder=1)
-    ax_boot.set_yscale("log")
-    ax_boot.set_xscale("log")
-    ax_boot.set_xticks(list(bootstrap["n_bootstrap"]))
-    ax_boot.set_xticklabels([str(int(size)) for size in bootstrap["n_bootstrap"]])
-    ax_boot.minorticks_off()
-    ax_boot.set_xlabel("bootstrap resamples per cell")
-    ax_boot.set_ylabel("spread of the standard error itself (%)")
-    ax_boot.set_title("Past about a thousand resamples the bootstrap is quieter\n"
-                      "than the replicates it summarises, and buys nothing more",
-                      loc="left", fontsize=9.5)
-    ax_boot.legend(frameon=False, loc="upper right", fontsize=8)
-    ax_boot.set_yticks([1, 2, 3, 4, 5, 6, 7])
-
     sizes = sorted(dispersion["n"].unique())
     for ax in (ax_var, ax_count, ax_cost):
         ax.set_xscale("log")
@@ -384,7 +351,7 @@ def plot_budget(dispersion, fixed, bootstrap, out_path, at_n=None):
                     xycoords=("data", "axes fraction"), xytext=(4, 0),
                     textcoords="offset points", color=INK_SOFT, fontsize=8)
         ax.set_xlabel("sample size n")
-    for ax in (ax_count, ax_cost, ax_boot):
+    for ax in (ax_count, ax_cost):
         ax.yaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
         ax.yaxis.set_major_formatter(
             matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:g}"))
@@ -443,8 +410,9 @@ def main():
 
     dispersion = path("budget_dispersion.csv")
     if os.path.exists(dispersion):
-        plot_budget(pd.read_csv(dispersion), pd.read_csv(path("budget_fixed_target.csv")),
-                    pd.read_csv(path("budget_bootstrap.csv")), out("budget.png"))
+        plot_budget(pd.read_csv(dispersion),
+                    pd.read_csv(path("budget_fixed_target.csv")),
+                    out("budget.png"))
         drawn += 1
 
     cores = path("benchmark_cores.csv")

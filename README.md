@@ -13,8 +13,8 @@ faster** in serial and **57 times faster** on eight cores, and produces the same
 [docs/BASELINE.md](docs/BASELINE.md) measures the Unit 2 code it started from and
 [docs/OPTIMIZATION.md](docs/OPTIMIZATION.md) sets out what was changed, what it bought and
 what it cost. [docs/EXTENSIONS.md](docs/EXTENSIONS.md) goes on to ask how many replicates the
-study actually needed, and finds it spends about a fifth of its simulation time and three
-fifths of its analysis time on precision it does not report.
+study actually needed: about a fifth of its runtime buys precision it never reports, and at
+larger sample sizes the share reaches 94%.
 
 ## Setup
 
