@@ -16,6 +16,21 @@ what it cost. [docs/EXTENSIONS.md](docs/EXTENSIONS.md) goes on to ask how many r
 study actually needed: about a fifth of its runtime buys precision it never reports, and at
 larger sample sizes the share reaches 94%.
 
+## Status
+
+The version submitted for Unit 3 is tagged `as-submitted` (commit `1897f4a`, 17 November).
+Every commit after that tag was made on 24 November, after the Unit 1 feedback came back, and
+each one addresses a point raised there: environment setup moved inside `make reproduce`, clone
+instructions added to this README, docstrings made to follow PEP257, variable names made
+informative, and the computational environment pinned. Each commit message names the point it
+responds to.
+
+None of it changes the study. No estimate, figure or reported number differs: all seven
+committed figures regenerate byte for byte, and the test suite and the regression tests pass
+unchanged. `git diff as-submitted..main` is confined to documentation, names, docstrings, the
+Makefile and the dependency pins, and `baseline/` is untouched, so the performance figures still
+describe the code that was measured.
+
 ## Reproducing everything
 
 Clone the repository and run one command. Nothing else needs preparing: `python3` and `make` are
