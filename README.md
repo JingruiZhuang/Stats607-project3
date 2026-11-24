@@ -16,19 +16,47 @@ what it cost. [docs/EXTENSIONS.md](docs/EXTENSIONS.md) goes on to ask how many r
 study actually needed: about a fifth of its runtime buys precision it never reports, and at
 larger sample sizes the share reaches 94%.
 
-## Setup
+## Reproducing everything
+
+Clone the repository and run one command. Nothing else needs preparing: `python3` and `make` are
+the only requirements, and `make reproduce` builds its own environment.
 
 ```
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+git clone https://github.com/JingruiZhuang/Stats607-project3.git
+cd Stats607-project3
+make reproduce
 ```
 
-## Running
+That target builds `.venv` from `requirements.txt`, deletes every generated file, reruns the
+simulation, the summary table and the figures, and then runs the test suite and the regression
+tests that show the optimizations preserved the study's results. About 20 seconds. No step needs
+an activated shell: every stage runs against the interpreter in `.venv`, which the target creates
+if it is missing.
+
+```
+make reproduce-full
+```
+
+adds the whole performance study on top of it -- profiling, complexity, the benchmarks, the
+stability diagnostics, the budget and the performance figures. Several minutes, because the
+benchmarks rerun the Unit 2 code repeatedly.
+
+`requirements.txt` pins every package, direct and transitive, to the version the committed
+results were produced with, and `.python-version` records the interpreter (3.14.7, on macOS).
+`make env` says so if it is building against a different one. The pinned set is what the
+byte-for-byte claim below was checked against; later versions may well work, but they are not
+what was verified.
+
+## Running individual stages
+
+`make reproduce` is the only command needed. The stages below are the same work in pieces, useful
+while developing; they call whatever `python3` is on the path, so activate the environment first
+(`source .venv/bin/activate`) or pass the interpreter in (`make all PYTHON=.venv/bin/python`).
 
 The study:
 
 ```
+make env        # virtual environment in .venv/ from requirements.txt
 make all        # simulate, summarise, and build all figures
 make simulate   # raw estimates  -> results/raw/estimates.csv
 make analyze    # summary table  -> results/raw/summary.csv
@@ -36,6 +64,7 @@ make figures    # figures        -> results/figures/
 make parallel   # the simulation on every core
 make test       # test suite
 make clean      # remove generated files
+make clean-env  # remove .venv/
 ```
 
 The performance study. `TARGET` selects the implementation, `baseline` (the frozen Unit 2
@@ -54,9 +83,10 @@ make baseline-reference           # rebuild the committed Unit 2 estimates from 
 ```
 
 Estimated runtime: about 3 seconds for `make all`, of which 0.9 seconds is the simulation;
-`make test` takes a further 7 seconds. `make benchmark` takes several minutes, because it
-reruns the Unit 2 code several times over. Rerunning `make all` from clean reproduces the
-committed figures byte for byte.
+`make test` takes a further 7 seconds, and building the environment about 25 seconds on a warm
+pip cache. `make benchmark` takes several minutes, because it reruns the Unit 2 code several
+times over. Rerunning `make reproduce` from nothing reproduces the committed figures byte for
+byte.
 
 ## Key findings
 
@@ -92,6 +122,11 @@ tests/test_regression.py   that the optimizations preserved the study's results
 tests/test_budget.py       the arithmetic behind the replicate counts
 docs/                the baseline measurement, the optimization record and the budget study
 ```
+
+`baseline/` is the Unit 2 code exactly as it was measured, so later tidying stops short of it:
+the docstring correction and the PEP257 and naming work in this repository are confined to `src/`
+and `tests/`. `baseline/` therefore keeps the wording it was benchmarked with, including one
+docstring that misstates the intercept decision and which `src/methods.py` now has right.
 
 Outputs: `results/raw/estimates.csv` holds one row per estimate (20,000 rows),
 `results/raw/summary.csv` one row per cell, `results/figures/` the figures,
