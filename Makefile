@@ -1,5 +1,9 @@
 PYTHON := python3
 
+VENV        := .venv
+VENV_PYTHON := $(VENV)/bin/python
+VENV_STAMP  := $(VENV)/.installed
+
 RAW     := results/raw/estimates.csv
 SUMMARY := results/raw/summary.csv
 FIGURES := results/figures/.stamp
@@ -11,11 +15,42 @@ PROFILES := results/profiles
 # costs time that would land in the measurement.
 PERF := TQDM_DISABLE=1 $(PYTHON)
 
-.PHONY: all simulate analyze figures test clean baseline-reference \
-        profile complexity benchmark parallel stability-check \
-        perf-figures performance regression budget clean-perf
+.PHONY: all reproduce reproduce-full env simulate analyze figures test clean \
+        baseline-reference profile complexity benchmark parallel \
+        stability-check perf-figures performance regression budget \
+        clean-perf clean-env
 
 all: figures
+
+# The study from a bare clone: build the environment, discard every generated
+# file, rerun the simulation, the summary and the figures, then run the suite
+# and the regression tests that show the optimizations preserved the results.
+# Each stage runs against the interpreter in $(VENV), so nothing depends on a
+# shell that has already been activated.  About 20 seconds.
+reproduce: env
+	$(MAKE) PYTHON=$(VENV_PYTHON) clean
+	$(MAKE) PYTHON=$(VENV_PYTHON) all
+	$(MAKE) PYTHON=$(VENV_PYTHON) test
+	$(MAKE) PYTHON=$(VENV_PYTHON) regression
+
+# The above and the whole performance study: profiling, complexity, the
+# benchmarks, the stability diagnostics, the budget and the performance
+# figures.  Several minutes, because the benchmarks rerun the Unit 2 code.
+reproduce-full: reproduce
+	$(MAKE) PYTHON=$(VENV_PYTHON) performance
+
+env: $(VENV_STAMP)
+
+$(VENV_STAMP): requirements.txt .python-version
+	@$(PYTHON) -c 'import pathlib, platform; \
+	expected = pathlib.Path(".python-version").read_text().strip(); \
+	actual = platform.python_version(); \
+	print(f"note: the study was run on Python {expected}, building with {actual}") \
+	if expected != actual else None'
+	$(PYTHON) -m venv $(VENV)
+	$(VENV)/bin/pip install --quiet --upgrade pip
+	$(VENV)/bin/pip install --quiet -r requirements.txt
+	touch $@
 
 simulate: $(RAW)
 
@@ -96,3 +131,6 @@ clean:
 clean-perf:
 	rm -f $(BENCH)/*.csv $(PROFILES)/*.prof $(PROFILES)/*.txt
 	rm -f $(addprefix results/figures/,$(addsuffix .png,$(PERF_FIGURES)))
+
+clean-env:
+	rm -rf $(VENV)
