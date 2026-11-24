@@ -115,10 +115,10 @@ def _solve(a, b):
     # Reached only when a system is singular or produced a non-finite answer.
     flat_a = a.reshape(-1, a.shape[-2], a.shape[-1])
     flat_b = b.reshape(-1, b.shape[-1])
-    out = np.empty_like(flat_b)
+    solutions = np.empty_like(flat_b)
     for i in range(flat_a.shape[0]):
-        out[i] = np.linalg.lstsq(flat_a[i], flat_b[i], rcond=None)[0]
-    return out.reshape(b.shape)
+        solutions[i] = np.linalg.lstsq(flat_a[i], flat_b[i], rcond=None)[0]
+    return solutions.reshape(b.shape)
 
 
 def _matvec(X, beta):
@@ -335,7 +335,7 @@ class _Replicate:
             return np.mean(_matvec(X, beta), axis=-1)
 
         treatment = self.treatment
-        zero = np.zeros_like(propensity)
+        zero_column = np.zeros_like(propensity)
         if constrained:
             received = (treatment * propensity
                         + (1.0 - treatment) * (1.0 - propensity))
@@ -345,8 +345,8 @@ class _Replicate:
         else:
             augment = [treatment / propensity,
                        (1.0 - treatment) / (1.0 - propensity)]
-            augment_treated = [1.0 / propensity, zero]
-            augment_control = [zero, 1.0 / (1.0 - propensity)]
+            augment_treated = [1.0 / propensity, zero_column]
+            augment_control = [zero_column, 1.0 / (1.0 - propensity)]
 
         def stack(base, extra):
             return np.concatenate([base] + [e[..., None] for e in extra], axis=-1)
@@ -360,21 +360,22 @@ class _Replicate:
     def run(self, cells):
         """Every named estimator, as ``name -> array over replicates``."""
         spec = config.SCENARIOS[self.scenario]
-        out = {}
+        estimates = {}
         for name, family, ps_name, or_name in cells:
             ps_spec = spec[ps_name] if ps_name else None
             or_spec = spec[or_name] if or_name else None
             if family == "ht":
-                out[name] = self.ht(ps_spec)
+                estimates[name] = self.ht(ps_spec)
             elif family == "or":
-                out[name] = self.outcome_regression(or_spec)
+                estimates[name] = self.outcome_regression(or_spec)
             elif family == "dr":
-                out[name] = self.doubly_robust(ps_spec, or_spec)
+                estimates[name] = self.doubly_robust(ps_spec, or_spec)
             elif family == "dr1":
-                out[name] = self.doubly_robust(ps_spec, or_spec, constrained=True)
+                estimates[name] = self.doubly_robust(ps_spec, or_spec,
+                                                    constrained=True)
             else:
                 raise ValueError(f"unknown estimator family: {family}")
-        return out
+        return estimates
 
 
 def estimate_batch(columns, scenario, cells, report=None):

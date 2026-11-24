@@ -52,12 +52,13 @@ def comparison_table(summary):
     Returns:
         The sixteen reproduction cells, formatted for printing.
     """
-    core = summary[summary["published_bias_mean"].notna()].copy()
-    table = core[["scenario", "estimator"]].copy()
+    reproduction = summary[summary["published_bias_mean"].notna()].copy()
+    table = reproduction[["scenario", "estimator"]].copy()
     for measure in MEASURES:
-        table[measure] = core[measure].map("{:.3f}".format)
-        table["paper_" + measure] = core["published_" + measure].map("{:.2f}".format)
-        table["z_" + measure] = core["z_" + measure].map("{:+.1f}".format)
+        table[measure] = reproduction[measure].map("{:.3f}".format)
+        table["paper_" + measure] = (
+            reproduction["published_" + measure].map("{:.2f}".format))
+        table["z_" + measure] = reproduction["z_" + measure].map("{:+.1f}".format)
     return table
 
 
@@ -70,8 +71,8 @@ def extension_table(summary):
     Returns:
         The extension cells, which Table 2 does not report.
     """
-    extra = summary[summary["published_bias_mean"].isna()]
-    return extra[["scenario", "estimator"] + MEASURES]
+    extension = summary[summary["published_bias_mean"].isna()]
+    return extension[["scenario", "estimator"] + MEASURES]
 
 
 def main():
@@ -88,14 +89,15 @@ def main():
     summary.to_csv(args.out, index=False)
     logger.info("wrote %d cells to %s", len(summary), args.out)
 
-    fmt = {"float_format": lambda x: f"{x: .3f}", "index": False, "na_rep": "-"}
+    print_options = {"float_format": lambda value: f"{value: .3f}",
+                     "index": False, "na_rep": "-"}
     print("\nReproduction cells, against Table 2")
-    print(comparison_table(summary).to_string(**fmt))
+    print(comparison_table(summary).to_string(**print_options))
 
     extensions = extension_table(summary)
     if not extensions.empty:
         print("\nExtension cells: the phi1 = phi2 variant of Section 2.2")
-        print(extensions.to_string(**fmt))
+        print(extensions.to_string(**print_options))
 
     worst = summary["z_bias_mean"].abs().max()
     print(f"\nLargest absolute z for the bias across reproduction cells: {worst:.1f}")

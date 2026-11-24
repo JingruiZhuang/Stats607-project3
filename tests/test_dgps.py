@@ -25,12 +25,12 @@ def test_scenario_b_ate():
 
 def test_missingness_pattern():
     """Y is missing exactly where D = 0 in scenario A, and never in scenario B."""
-    a = dgps.generate("A", 2000, np.random.default_rng(13))
-    assert a["Y"].isna().equals(a["D"] == 0.0)
-    assert a["Y"].notna().any() and a["Y"].isna().any()
+    scenario_a = dgps.generate("A", 2000, np.random.default_rng(13))
+    assert scenario_a["Y"].isna().equals(scenario_a["D"] == 0.0)
+    assert scenario_a["Y"].notna().any() and scenario_a["Y"].isna().any()
 
-    b = dgps.generate("B", 2000, np.random.default_rng(14))
-    assert b["Y"].notna().all()
+    scenario_b = dgps.generate("B", 2000, np.random.default_rng(14))
+    assert scenario_b["Y"].notna().all()
 
 
 def test_indicators():

@@ -16,7 +16,6 @@ import argparse
 import logging
 import os
 import time
-import warnings
 
 import numpy as np
 import pandas as pd

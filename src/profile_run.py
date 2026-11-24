@@ -142,16 +142,16 @@ def package_times(stats):
 
 
 def _table(rows, total, header, note):
-    out = io.StringIO()
-    print(header, file=out)
-    print(note, file=out)
-    print(f"{'':<34}{'seconds':>10}{'share':>9}", file=out)
+    text = io.StringIO()
+    print(header, file=text)
+    print(note, file=text)
+    print(f"{'':<34}{'seconds':>10}{'share':>9}", file=text)
     for label, seconds in rows:
         if seconds <= 0.0:
             continue                      # not part of this implementation
         share = 100.0 * seconds / total if total else 0.0
-        print(f"{label:<34}{seconds:>10.3f}{share:>8.1f}%", file=out)
-    return out.getvalue()
+        print(f"{label:<34}{seconds:>10.3f}{share:>8.1f}%", file=text)
+    return text.getvalue()
 
 
 def report(stats, elapsed, target, scenarios, n_replicates, out_dir, top=25):

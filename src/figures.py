@@ -66,16 +66,16 @@ def family(estimator):
 
 def cell_label(ps_name, or_name):
     """Describe in one line which nuisance models this cell got right."""
-    mark = {"ps_true": "correct", "ps_false": "false", None: "unused",
-            "or_true": "correct", "or_false": "false"}
-    return f"PS {mark[ps_name]}, OR {mark[or_name]}"
+    wording = {"ps_true": "correct", "ps_false": "false", None: "unused",
+               "or_true": "correct", "or_false": "false"}
+    return f"PS {wording[ps_name]}, OR {wording[or_name]}"
 
 
 def ordered_cells(scenario):
     """Return the cells of ``scenario`` in the order the figures show them."""
     cells = config.ESTIMATORS + (config.EXTENSION_ESTIMATORS
                                  if scenario in config.EXTENSION_SCENARIOS else [])
-    return [c for c in cells]
+    return cells
 
 
 def plot_distributions(raw, out_path):
@@ -140,12 +140,12 @@ def plot_bias_grid(summary, out_path):
     that the doubly robust estimator needs only one of them can be read off the
     figure instead of inferred from a table of estimator names.
     """
-    core = summary[summary["published_bias_mean"].notna()]
+    reproduction = summary[summary["published_bias_mean"].notna()]
     fig, axes = plt.subplots(1, 2, figsize=(11.5, 5.4))
 
     for ax, scenario in zip(axes, config.SCENARIOS):
-        cells = [c for c in config.ESTIMATORS]
-        rows = core[core.scenario == scenario].set_index("estimator")
+        cells = config.ESTIMATORS
+        rows = reproduction[reproduction.scenario == scenario].set_index("estimator")
         positions = np.arange(len(cells))
 
         for position, (name, _, ps_name, or_name) in zip(positions, cells):

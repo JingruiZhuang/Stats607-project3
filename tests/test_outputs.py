@@ -32,14 +32,14 @@ def test_performance_measures_recover_known_values():
     """
     rng = np.random.default_rng(31)
     values = rng.normal(1.5, 0.2, 20_000)
-    out = metrics.performance(values, truth=1.0, rng=rng)
+    measured = metrics.performance(values, truth=1.0, rng=rng)
 
-    assert abs(out["bias_mean"] - 0.5) < 0.01
-    assert abs(out["bias_median"] - 0.5) < 0.01
-    assert abs(out["variance"] - 0.04) < 0.002
-    assert abs(out["iqr"] - 1.349 * 0.2) < 0.01
-    assert out["variance"] > 0 and out["iqr"] > 0
-    assert all(np.isfinite(v) for v in out.values())
+    assert abs(measured["bias_mean"] - 0.5) < 0.01
+    assert abs(measured["bias_median"] - 0.5) < 0.01
+    assert abs(measured["variance"] - 0.04) < 0.002
+    assert abs(measured["iqr"] - 1.349 * 0.2) < 0.01
+    assert measured["variance"] > 0 and measured["iqr"] > 0
+    assert all(np.isfinite(value) for value in measured.values())
 
 
 def test_measures_in_valid_ranges(summary):
@@ -62,13 +62,13 @@ def test_matches_published_values(summary):
     rounding of the published values to two decimal places, which for the
     variance and the median is itself comparable to the simulation noise.
     """
-    core = summary[summary["published_bias_mean"].notna()]
-    assert len(core) == 16
+    reproduction = summary[summary["published_bias_mean"].notna()]
+    assert len(reproduction) == 16
 
     for measure in ("bias_mean", "bias_median", "variance", "iqr"):
-        gap = (core[measure] - core["published_" + measure]).abs()
-        tolerance = 4.0 * core[measure + "_se"] + 0.005
-        failures = core.loc[gap > tolerance, ["scenario", "estimator"]]
+        gap = (reproduction[measure] - reproduction["published_" + measure]).abs()
+        tolerance = 4.0 * reproduction[measure + "_se"] + 0.005
+        failures = reproduction.loc[gap > tolerance, ["scenario", "estimator"]]
         assert failures.empty, f"{measure} off in {failures.to_dict('records')}"
 
 
@@ -82,10 +82,10 @@ def test_full_run_summary_is_tighter():
         pytest.skip(f"{config.SUMMARY_PATH} not present; run `make analyze`")
 
     full = pd.read_csv(config.SUMMARY_PATH)
-    core = full[full["published_bias_mean"].notna()]
-    assert len(core) == 16
-    assert (core["n_replicates"] == config.N_SIM).all()
-    assert core["z_bias_mean"].abs().max() < 3.0
+    reproduction = full[full["published_bias_mean"].notna()]
+    assert len(reproduction) == 16
+    assert (reproduction["n_replicates"] == config.N_SIM).all()
+    assert reproduction["z_bias_mean"].abs().max() < 3.0
 
 
 def test_same_seed_same_results(tmp_path):

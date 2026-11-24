@@ -185,19 +185,20 @@ def test_no_estimate_became_non_finite(optimized):
 
 # -------------------------------------------------------------- statistical
 
-def _two_sample_ks(a, b):
+def _two_sample_ks(sample_a, sample_b):
     """Two-sample Kolmogorov-Smirnov statistic and its asymptotic p-value.
 
     Written out rather than imported so that the test suite does not acquire a
     SciPy dependency for one statistic.
     """
-    a = np.sort(np.asarray(a, dtype=float))
-    b = np.sort(np.asarray(b, dtype=float))
-    grid = np.concatenate([a, b])
-    statistic = np.max(np.abs(np.searchsorted(a, grid, side="right") / a.size
-                              - np.searchsorted(b, grid, side="right") / b.size))
+    first = np.sort(np.asarray(sample_a, dtype=float))
+    second = np.sort(np.asarray(sample_b, dtype=float))
+    grid = np.concatenate([first, second])
+    statistic = np.max(np.abs(
+        np.searchsorted(first, grid, side="right") / first.size
+        - np.searchsorted(second, grid, side="right") / second.size))
 
-    effective = np.sqrt(a.size * b.size / (a.size + b.size))
+    effective = np.sqrt(first.size * second.size / (first.size + second.size))
     scaled = (effective + 0.12 + 0.11 / effective) * statistic
     terms = np.arange(1, 101)
     p_value = 2.0 * np.sum((-1.0) ** (terms - 1)
@@ -211,10 +212,10 @@ def test_ks_detects_a_real_shift():
     Passing it is then evidence rather than a formality.
     """
     rng = np.random.default_rng(3)
-    a = rng.normal(0.0, 0.3, config.N_SIM)
-    b = rng.normal(0.05, 0.3, config.N_SIM)          # a sixth of a standard deviation
-    assert _two_sample_ks(a, b)[1] < 0.05
-    assert _two_sample_ks(a, a + 1e-9)[1] > 0.99
+    unshifted = rng.normal(0.0, 0.3, config.N_SIM)
+    shifted = rng.normal(0.05, 0.3, config.N_SIM)    # a sixth of a standard deviation
+    assert _two_sample_ks(unshifted, shifted)[1] < 0.05
+    assert _two_sample_ks(unshifted, unshifted + 1e-9)[1] > 0.99
 
 
 def test_sampling_distributions_unchanged(reference, optimized):

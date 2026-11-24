@@ -70,11 +70,11 @@ def expit(x):
 
 def add_indicators(data):
     """Append ``Il`` = ``1(Vl > 0)`` for every covariate present."""
-    out = data.copy()
-    for v in COVARIATES:
-        if v in out.columns:
-            out["I" + v[1:]] = (out[v] > 0).astype(float)
-    return out
+    augmented = data.copy()
+    for covariate in COVARIATES:
+        if covariate in augmented.columns:
+            augmented["I" + covariate[1:]] = (augmented[covariate] > 0).astype(float)
+    return augmented
 
 
 def _columns(data):
@@ -130,9 +130,9 @@ def with_treatment(data, value):
 
     Used to read off potential outcomes when verifying the true estimand.
     """
-    out = data.copy()
-    out["D"] = float(value)
-    return out
+    fixed = data.copy()
+    fixed["D"] = float(value)
+    return fixed
 
 
 def set_treatment(columns, value):
