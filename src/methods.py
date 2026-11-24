@@ -190,12 +190,15 @@ def fit_logistic(X, outcome, report=None):
 
 
 def fit_propensity(data, spec, report=None):
-    """Fit a logistic model for ``D`` and return the fitted probabilities.
+    """Fit a logistic model for ``D`` and return its fitted probabilities.
 
-    The specification supplies its own intercept where it has one, so the false
-    models of Table 1 are fitted without intercepts as the paper writes them.
-    Fitted probabilities are clipped only at the edge of floating point; the
-    paper does not trim weights and neither does this.
+    The design matrix is built entirely from ``spec["terms"]``, so a model has
+    an intercept exactly when its term list opens with ``"1"``.  Table 1 writes
+    the two false propensity models without an intercept, but ``config`` gives
+    them one: fitted literally they miss the published biases, and ``ADEMP.md``
+    records why the intercept is kept.  Fitted probabilities are clipped only
+    at the edge of floating point; the paper does not trim weights and neither
+    does this.
     """
     columns = dgps._columns(data) if not isinstance(data, dict) else data
     X = dgps.design_matrix(None, spec["terms"], columns)
