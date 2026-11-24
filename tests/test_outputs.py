@@ -13,7 +13,7 @@ N_SIM_TEST = 300
 
 @pytest.fixture(scope="module")
 def summary(tmp_path_factory):
-    """A short run of the whole grid, summarised.
+    """Summarise a short run of the whole grid.
 
     Short enough to keep the suite quick, and seeded from the same master seed,
     so these are the leading replicates of the full run.
@@ -25,8 +25,11 @@ def summary(tmp_path_factory):
 
 
 def test_performance_measures_recover_known_values():
-    """On estimates drawn from a known distribution, the four measures return
-    that distribution's bias, variance and interquartile range."""
+    """Check the four measures against a distribution with known moments.
+
+    On estimates drawn from a known normal distribution, they return that
+    distribution's bias, variance and interquartile range.
+    """
     rng = np.random.default_rng(31)
     values = rng.normal(1.5, 0.2, 20_000)
     out = metrics.performance(values, truth=1.0, rng=rng)
@@ -40,8 +43,11 @@ def test_performance_measures_recover_known_values():
 
 
 def test_measures_in_valid_ranges(summary):
-    """Every cell has a positive variance and interquartile range, finite
-    biases, and the expected number of replicates."""
+    """Check that every cell of the design is in a valid range.
+
+    Each has a positive variance and interquartile range, finite biases, and
+    the expected number of replicates.
+    """
     assert len(summary) == 20
     assert (summary["n_replicates"] == N_SIM_TEST).all()
     assert (summary["variance"] > 0).all()
@@ -67,8 +73,11 @@ def test_matches_published_values(summary):
 
 
 def test_full_run_summary_is_tighter():
-    """Where the committed full run is present, every reproduction cell sits
-    within three standard errors of its published bias."""
+    """Check the committed full run against the published biases.
+
+    Where it is present, every reproduction cell sits within three Monte Carlo
+    standard errors of its published bias.
+    """
     if not os.path.exists(config.SUMMARY_PATH):
         pytest.skip(f"{config.SUMMARY_PATH} not present; run `make analyze`")
 
@@ -80,9 +89,12 @@ def test_full_run_summary_is_tighter():
 
 
 def test_same_seed_same_results(tmp_path):
-    """Rerunning with the same seed gives identical estimates, a scenario run
-    on its own draws the same data as in a full run, and a short run reproduces
-    the leading replicates of a longer one."""
+    """Check that the seeding scheme is reproducible and keyed by position.
+
+    Rerunning with the same seed gives identical estimates, a scenario run on
+    its own draws the same data as in a full run, and a short run reproduces
+    the leading replicates of a longer one.
+    """
     def go(n_sim, scenarios):
         return simulation.run(scenarios, config.N, n_sim, config.MASTER_SEED,
                               str(tmp_path / f"{n_sim}-{''.join(scenarios)}.csv"))

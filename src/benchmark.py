@@ -68,7 +68,7 @@ def _time_run(target, scenarios, n, n_sim, seed, out_path, repeats, **kwargs):
 
 
 def compare_implementations(scenarios, n, sizes, seed, out_dir, repeats=3):
-    """The whole study, baseline against optimized, across simulation sizes."""
+    """Time the whole study, baseline against optimized, across study sizes."""
     rows = []
     for n_sim in sizes:
         for target in ("baseline", "optimized"):
@@ -226,6 +226,7 @@ def plot_speedup(cores, out_path):
 
 
 def main():
+    """Run the benchmarks and write their timings to disk."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--n", type=int, default=config.N)
     parser.add_argument("--n-sim", type=int, default=config.N_SIM)

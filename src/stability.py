@@ -176,6 +176,7 @@ def summarise(diagnostics):
 
 
 def main():
+    """Run the stability diagnostics and write their tables to disk."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", default="baseline",
                         choices=sorted(bench_config.IMPLEMENTATIONS))

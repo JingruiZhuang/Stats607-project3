@@ -48,18 +48,32 @@ class ConvergenceReport:
     """
 
     def __init__(self):
+        """Start a report with no fits recorded."""
         self.fits = 0
         self.failures = 0
         self.max_iterations = 0
         self.clipped_fits = 0
 
     def record(self, converged, iterations, clipped):
+        """Add one batch of logistic fits to the running totals.
+
+        Args:
+            converged: per-fit convergence flags, scalar or array.
+            iterations: IRLS iterations the batch took.
+            clipped: per-fit flags for propensities clipped at the edge of
+                floating point.
+        """
         self.fits += int(np.size(converged))
         self.failures += int(np.size(converged) - np.count_nonzero(converged))
         self.max_iterations = max(self.max_iterations, int(iterations))
         self.clipped_fits += int(np.count_nonzero(clipped))
 
     def warn_if_needed(self):
+        """Warn if any fit failed to converge, and return self.
+
+        Returns:
+            This report, so the call can be chained onto the run that made it.
+        """
         if self.failures:
             warnings.warn(
                 f"{self.failures} of {self.fits} logistic fits did not converge "
@@ -68,6 +82,7 @@ class ConvergenceReport:
         return self
 
     def __repr__(self):
+        """Return the four totals, for a test failure or a log line."""
         return (f"ConvergenceReport(fits={self.fits}, failures={self.failures}, "
                 f"max_iterations={self.max_iterations}, "
                 f"clipped_fits={self.clipped_fits})")
@@ -238,7 +253,7 @@ class _Replicate:
             self.response = self.outcome
 
     def design(self, terms, treatment=None):
-        """The design matrix for ``terms``, optionally at a fixed treatment."""
+        """Return the design matrix for ``terms``, at a fixed treatment if given."""
         key = (tuple(terms), treatment)
         matrix = self._designs.get(key)
         if matrix is None:
@@ -248,7 +263,7 @@ class _Replicate:
         return matrix
 
     def propensity(self, spec):
-        """The fitted propensities for one model, fitted at most once.
+        """Return the fitted propensities for one model, fitting at most once.
 
         Cached on the model's own terms rather than on the name it was asked
         for, because the terms are what determine the fit: `HT`, `DR` and
@@ -370,7 +385,7 @@ def estimate_batch(columns, scenario, cells, report=None):
 # ------------------------------------------- per-replicate API, unchanged
 
 def _single(data, scenario):
-    """A one-replicate ``_Replicate``, for the per-replicate API below.
+    """Wrap one replicate as a ``_Replicate``, for the per-replicate API below.
 
     The public functions of Unit 2 are kept so that the existing test suite
     tests the code that runs, and so that a single replicate can still be
@@ -387,8 +402,10 @@ def estimate_ht(data, scenario, ps_spec):
 
 
 def estimate_or(data, scenario, or_spec):
-    """Outcome-regression estimate: fit by least squares, then average the
-    fitted values."""
+    """Estimate by outcome regression.
+
+    Fits by least squares, then averages the fitted values.
+    """
     return float(_single(data, scenario).outcome_regression(or_spec))
 
 
@@ -399,8 +416,28 @@ def estimate_dr(data, scenario, ps_spec, or_spec, constrained=False):
 
 
 def estimate(data, scenario, family, ps_name, or_name):
-    """Dispatch to the estimator named by ``family``, resolving model names
-    against the scenario's specifications in ``config``."""
+    """Dispatch to the estimator named by ``family``.
+
+    Model names are resolved against the scenario's specifications in
+    ``config``, so a cell of the design is described by names alone.
+
+    Args:
+        data: one simulated dataset, or its column mapping.
+        scenario: ``"A"`` for the missing-data problem, ``"B"`` for the
+            treatment effect.
+        family: ``"ht"``, ``"or"``, ``"dr"``, or ``"dr1"`` for the constrained
+            variant of Section 2.2.
+        ps_name: key of the propensity specification, or ``None`` where the
+            estimator does not use one.
+        or_name: key of the outcome specification, or ``None`` where the
+            estimator does not use one.
+
+    Returns:
+        The estimate of the scenario's estimand.
+
+    Raises:
+        ValueError: if ``family`` is not one of the four names above.
+    """
     spec = config.SCENARIOS[scenario]
     ps_spec = spec[ps_name] if ps_name else None
     or_spec = spec[or_name] if or_name else None

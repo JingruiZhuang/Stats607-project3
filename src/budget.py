@@ -168,7 +168,7 @@ def costs(target, scenarios, sizes, n_sim, seed, out_dir, repeats=3):
 def variance_scaling(pilot_frame):
     """Fit ``sd^2 = a n^-q`` per cell.
 
-Standard asymptotics say the sampling variance of a root-n consistent
+    Standard asymptotics say the sampling variance of a root-n consistent
     estimator falls like 1/n, so q = 1 is the value to compare against; a cell
     that departs from it is one where the bias, not the variance, is what n is
     buying.  Fitted on the logs, where the power law is a line.
@@ -204,12 +204,12 @@ def required_replicates(frame, target, measure="bias_mean"):
 
 
 def usable(frame, limit=TAIL_SHARE_LIMIT):
-    """The cells whose sample variance is not the artefact of a single draw."""
+    """Select the cells whose variance is not the artefact of a single draw."""
     return frame[frame["tail_share"] < limit]
 
 
 def binding_cell(frame, target, measure="bias_mean"):
-    """The replicate count a scenario needs, and the cell that sets it.
+    """Return the replicate count a scenario needs, and the cell that sets it.
 
     Within a scenario every estimator is computed on the same replicates -- the
     design draws one dataset and hands it to all of them -- so a replicate
@@ -226,7 +226,7 @@ def binding_cell(frame, target, measure="bias_mean"):
 
 
 def uniform_target(frame, n_sim, measure="bias_mean"):
-    """The precision a uniform design of ``n_sim`` replicates actually delivers.
+    """Report what a uniform design of ``n_sim`` replicates actually delivers.
 
     Its worst cell, which is the only honest summary of a design that reports
     every cell in one table: a reader comparing two numbers from that table is
@@ -282,7 +282,7 @@ def allocate(pilot_frame, cost_frame, n_sim_uniform, measure="bias_mean",
 
 
 def measure_comparison(pilot_frame, cost_frame, n, n_sim_uniform):
-    """What each of the four reported measures asks of the replicate count.
+    """Compare what each reported measure asks of the replicate count.
 
     All four are reported from the same replicates, so the design has to serve
     the most demanding of them; a count chosen for the mean alone can leave the
@@ -340,6 +340,7 @@ def validate(target, allocation, n, seed, out_dir):
 # --------------------------------------------------------------------- entry
 
 def main():
+    """Size the simulation budget and write the budget tables to disk."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", default="optimized")
     parser.add_argument("--n", action="append", type=int, dest="sizes")

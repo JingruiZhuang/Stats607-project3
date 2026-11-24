@@ -34,6 +34,7 @@ MARK = "·"
 
 
 def style():
+    """Apply the figure style shared by every plot in this module."""
     plt.rcParams.update({
         "figure.facecolor": SURFACE,
         "axes.facecolor": SURFACE,
@@ -59,17 +60,19 @@ def family_handles(stems):
 
 
 def family(estimator):
+    """Return the estimator family, the part of ``estimator`` before any dot."""
     return estimator.split(".")[0]
 
 
 def cell_label(ps_name, or_name):
-    """A one-line reading of which nuisance models this cell got right."""
+    """Describe in one line which nuisance models this cell got right."""
     mark = {"ps_true": "correct", "ps_false": "false", None: "unused",
             "or_true": "correct", "or_false": "false"}
     return f"PS {mark[ps_name]}, OR {mark[or_name]}"
 
 
 def ordered_cells(scenario):
+    """Return the cells of ``scenario`` in the order the figures show them."""
     cells = config.ESTIMATORS + (config.EXTENSION_ESTIMATORS
                                  if scenario in config.EXTENSION_SCENARIOS else [])
     return [c for c in cells]
@@ -187,7 +190,7 @@ def plot_bias_grid(summary, out_path):
 
 
 def plot_extension(summary, out_path):
-    """The variant of Section 2.2 beside the estimator that Table 2 reports.
+    """Draw the Section 2.2 variant beside the estimator that Table 2 reports.
 
     The two coincide wherever the outcome model is correct and part company
     wherever it is not, which is the only place double robustness is of any use.
@@ -247,6 +250,7 @@ def plot_extension(summary, out_path):
 
 
 def main():
+    """Build the study's figures from the raw estimates and the summary table."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--raw", default=config.RAW_PATH)
     parser.add_argument("--summary", default=config.SUMMARY_PATH)

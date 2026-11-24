@@ -127,7 +127,7 @@ def stage_times(stats):
 
 
 def package_times(stats):
-    """Internal seconds grouped by package: a true partition of the run."""
+    """Group internal seconds by package, a true partition of the run."""
     totals = {label: 0.0 for label, *_ in PACKAGES}
     for key, entry in stats.stats.items():
         path, function, tottime = key[0], key[2], entry[2]
@@ -219,6 +219,7 @@ def report(stats, elapsed, target, scenarios, n_replicates, out_dir, top=25):
 
 
 def main():
+    """Profile one implementation and write the attribution to disk."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", default="baseline",
                         choices=sorted(bench_config.IMPLEMENTATIONS))

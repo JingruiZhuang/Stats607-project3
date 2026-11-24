@@ -9,9 +9,11 @@ INTERCEPT_ONLY = {"terms": ["1"]}
 
 
 def _randomised_data(scenario, n, rng):
-    """A sanity-check dataset: treatment or missingness completely at random
-    with probability 0.5, and an outcome linear in the covariates, so every
-    estimator should recover the truth.
+    """Build a dataset on which every estimator should recover the truth.
+
+    Treatment or missingness is completely at random with probability 0.5 and
+    the outcome is linear in the covariates, so no estimator has anything to
+    get wrong.
     """
     data = dgps.add_indicators(
         pd.DataFrame({v: rng.standard_normal(n) for v in dgps.COVARIATES})
@@ -27,8 +29,11 @@ def _randomised_data(scenario, n, rng):
 
 
 def test_sanity_condition():
-    """With pi = 0.5 and a correct linear outcome model, all three estimators
-    agree with each other and with the true value."""
+    """Check the easy case, where every estimator should be right.
+
+    With pi = 0.5 and a correct linear outcome model, all three estimators
+    agree with each other and with the true value.
+    """
     for scenario, truth, terms in (("A", 1.0, ["1", "V1"]),
                                    ("B", 3.0, ["1", "V1", "D"])):
         data = _randomised_data(scenario, 50_000, np.random.default_rng(21))
@@ -56,8 +61,11 @@ def test_doubly_robust_under_one_correct_model():
 
 
 def test_constrained_variant_is_vacuous_in_scenario_a():
-    """Scenario A adds a single augmenting covariate, so constraining its
-    coefficient changes nothing and the two variants coincide exactly."""
+    """Check that the two doubly robust variants coincide in scenario A.
+
+    Scenario A adds a single augmenting covariate, so constraining its
+    coefficient changes nothing and the two variants agree exactly.
+    """
     spec = config.SCENARIOS["A"]
     data = dgps.generate("A", 5000, np.random.default_rng(24))
     for orm in ("or_true", "or_false"):
@@ -68,9 +76,12 @@ def test_constrained_variant_is_vacuous_in_scenario_a():
 
 
 def test_constrained_variant_is_not_doubly_robust():
-    """The phi1 = phi2 variant of Section 2.2 loses double robustness for the
-    treatment effect: with a correct propensity model but a false outcome
-    model it does not converge to the true effect."""
+    """Check that the phi1 = phi2 variant of Section 2.2 is not doubly robust.
+
+    It loses double robustness for the treatment effect: with a correct
+    propensity model but a false outcome model it does not converge to the
+    true effect.
+    """
     spec = config.SCENARIOS["B"]
     data = dgps.generate("B", 100_000, np.random.default_rng(23))
     unconstrained = methods.estimate_dr(data, "B", spec["ps_true"], spec["or_false"])

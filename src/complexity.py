@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 def _package(target):
-    """The package a named implementation lives in (``src`` or ``baseline``)."""
+    """Return the package a named implementation lives in, ``src`` or ``baseline``."""
     return bench_config.IMPLEMENTATIONS[target].rsplit(".", 1)[0]
 
 
@@ -213,6 +213,7 @@ def exponents(timings, min_n=0):
 
 
 def main():
+    """Time each implementation against n and write the fits to disk."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", action="append", dest="targets")
     parser.add_argument("--n", action="append", type=int, dest="sizes")

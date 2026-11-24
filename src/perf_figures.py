@@ -126,7 +126,7 @@ def plot_complexity(timings, fits, out_path, at_n=None):
 
 
 def plot_budget(dispersion, fixed, out_path, at_n=None):
-    """The three relationships a simulation budget is decided by.
+    """Draw the three relationships a simulation budget is decided by.
 
     Left: how fast each cell's sampling variance falls with n, which is what
     makes replicates at large n redundant.  Middle: the replicate count that
@@ -247,6 +247,7 @@ def plot_budget(dispersion, fixed, out_path, at_n=None):
 
 
 def main():
+    """Build the performance figures from the committed benchmark tables."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bench-dir", default=bench_config.BENCHMARK_DIR)
     parser.add_argument("--outdir", default=config.FIGURE_DIR)

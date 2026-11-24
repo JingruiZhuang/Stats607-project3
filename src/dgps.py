@@ -78,7 +78,7 @@ def add_indicators(data):
 
 
 def _columns(data):
-    """A name -> array mapping for whatever ``data`` is.
+    """Return a name -> array mapping for whatever ``data`` is.
 
     Accepts the DataFrame the public API promises and the plain dict of arrays
     the batched path uses, so one implementation of ``design_matrix`` serves

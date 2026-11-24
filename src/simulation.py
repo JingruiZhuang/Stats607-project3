@@ -33,14 +33,14 @@ BATCH_SIZE = 250
 
 
 def cells(scenario):
-    """The estimator configurations to run for one scenario."""
+    """Return the estimator configurations to run for one scenario."""
     extensions = (config.EXTENSION_ESTIMATORS
                   if scenario in config.EXTENSION_SCENARIOS else [])
     return config.ESTIMATORS + extensions
 
 
 def scenario_seeds(scenario, n_sim, master_seed):
-    """The seed of every replicate of a scenario, in order.
+    """Return the seed of every replicate of a scenario, in order.
 
     Derived against the full scenario list rather than the subset being run, so
     that a single scenario rerun on its own draws the same data as it does in a
@@ -164,6 +164,7 @@ def run(scenarios, n, n_sim, master_seed, out_path, jobs=1,
 
 
 def main():
+    """Run the simulation from the command line and write the raw estimates."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default=config.RAW_PATH)
     parser.add_argument("--n", type=int, default=config.N)

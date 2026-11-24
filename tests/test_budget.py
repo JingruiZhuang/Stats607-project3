@@ -18,6 +18,7 @@ from src import budget
 
 @pytest.fixture
 def frame():
+    """Return a four-cell dispersion table with known standard deviations."""
     return pd.DataFrame({
         "scenario": ["A", "A", "B", "B"],
         "estimator": ["OR", "HT", "OR", "DR.ofal"],
@@ -72,6 +73,7 @@ def test_the_scenario_is_sized_by_its_widest_cell(frame):
 
 
 def test_the_binding_count_is_enough_for_every_cell_in_the_scenario(frame):
+    """Check that the binding count meets the target in every cell it covers."""
     target = 0.015
     for scenario, cell in frame.groupby("scenario"):
         n_sim = budget.binding_cell(cell, target)["n_sim_required"]
@@ -79,6 +81,7 @@ def test_the_binding_count_is_enough_for_every_cell_in_the_scenario(frame):
 
 
 def test_uniform_target_is_the_worst_cell_not_the_average(frame):
+    """Check that a uniform design is reported by its worst cell."""
     reported = budget.uniform_target(frame, 1000, "bias_mean")
     assert reported == pytest.approx(frame["sd"].max() / np.sqrt(1000))
 
@@ -132,6 +135,7 @@ def test_a_cell_carried_by_one_draw_is_excluded_and_counted(frame):
 # ---------------------------------------------------------------- the pilot
 
 def test_dispersion_reports_the_tail_share_of_an_exploded_cell():
+    """Check that one wild estimate is reported as tail share, not averaged in."""
     raw = pd.DataFrame({"estimator": ["DR"] * 100,
                         "estimate": [0.1] * 99 + [1e6]})
     measured = budget.dispersion(raw, "B", 500, np.random.default_rng(0))

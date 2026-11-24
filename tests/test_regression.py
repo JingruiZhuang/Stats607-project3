@@ -46,7 +46,7 @@ SUMMARY_TOLERANCE = 1e-6
 
 @pytest.fixture(scope="module")
 def reference():
-    """The committed Unit 2 estimates, rebuilt from ``baseline/`` if absent.
+    """Load the committed Unit 2 estimates, rebuilding them if absent.
 
     Rebuilt rather than skipped.  These are the checks that the optimizations
     preserved the study's results, and a correctness test that quietly does
@@ -63,7 +63,7 @@ def reference():
 
 @pytest.fixture(scope="module")
 def optimized(tmp_path_factory, reference):
-    """The same study, rerun with the optimized code."""
+    """Rerun the same study with the optimized code."""
     out = tmp_path_factory.mktemp("raw") / "estimates.csv"
     return simulation.run(list(config.SCENARIOS), config.N, config.N_SIM,
                           config.MASTER_SEED, str(out))
@@ -71,7 +71,7 @@ def optimized(tmp_path_factory, reference):
 
 @pytest.fixture(scope="module")
 def paired(reference, optimized):
-    """Unit 2 and optimized estimates, matched replicate by replicate."""
+    """Match the Unit 2 and optimized estimates replicate by replicate."""
     keys = ["scenario", "replicate", "estimator"]
     merged = reference.merge(optimized, on=keys, suffixes=("_old", "_new"))
     assert len(merged) == len(reference) == len(optimized)
@@ -206,8 +206,10 @@ def _two_sample_ks(a, b):
 
 
 def test_ks_detects_a_real_shift():
-    """The KS test used below has power against a shift of the size that would
-    matter, so passing it is evidence rather than a formality."""
+    """Check that the KS test below has power against a shift that matters.
+
+    Passing it is then evidence rather than a formality.
+    """
     rng = np.random.default_rng(3)
     a = rng.normal(0.0, 0.3, config.N_SIM)
     b = rng.normal(0.05, 0.3, config.N_SIM)          # a sixth of a standard deviation
@@ -279,8 +281,10 @@ def test_logistic_fit_matches_statsmodels():
 
 
 def test_expit_is_overflow_free():
-    """The logistic function returns the right answer where the naive form
-    overflows, which is the case a fitted linear predictor can reach."""
+    """Check that the logistic function is right where the naive form overflows.
+
+    That is a case a fitted linear predictor can reach.
+    """
     extreme = np.array([-1e4, -800.0, -745.0, 0.0, 745.0, 800.0, 1e4])
     with np.errstate(over="raise", under="ignore"):
         values = dgps.expit(extreme)
@@ -317,8 +321,11 @@ def test_non_convergence_is_reported():
 
 
 def test_fitted_probabilities_stay_inside_the_unit_interval():
-    """Clipping keeps a fitted probability strictly between 0 and 1, so that
-    the inverse-probability weights are finite however extreme the fit."""
+    """Check that a fitted probability stays strictly between 0 and 1.
+
+    Clipping keeps the inverse-probability weights finite however extreme the
+    fit.
+    """
     separated = np.linspace(-1.0, 1.0, 40)
     X = np.column_stack([np.ones_like(separated), separated])
     fitted = methods.fit_logistic(X, (separated > 0).astype(float))
